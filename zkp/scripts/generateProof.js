@@ -1,35 +1,43 @@
+
+// zkp/scripts/generateProof.js
 const { groth16 } = require("snarkjs");
 const fs = require("fs");
-const circomlibjs = require("circomlibjs");
+const path = require("path");
 
-// Compute Poseidon hash
-async function computeHash(secret) {
-    const poseidon = await circomlibjs.buildPoseidon(); // Initialize Poseidon
-    const hash = poseidon([BigInt(secret)]); // Compute Poseidon hash
-    return poseidon.F.toString(hash); // Convert hash to a string representation of the field element
-}
+const CIRCUITS_DIR = path.join(__dirname, "..", "circuits"); // Adjust path as needed
+const PROOFS_DIR = path.join(__dirname, "..", "proofs"); // Adjust path as needed
 
-async function generateProof() {
-    const secret = "123456"; // Secret input (as string)
-    const hash = await computeHash(secret); // Compute hash as a string
-
-    console.log("Secret:", secret);
-    console.log("Computed Hash:", hash);
-
+/**
+ * Generate a ZKP proof
+ * @param {string} secret - User's secret
+ * @param {string} hash - Hash of the secret
+ */
+const generateProof = async (secret, hash) => {
+  try {
     const { proof, publicSignals } = await groth16.fullProve(
-        { secret: secret, hash: hash }, // Inputs as strings
-        "circuits/auth_js/auth.wasm",  // Compiled circuit
-        "circuits/auth_0001.zkey"      // Proving key
+      { secret, hash },
+      path.join(CIRCUITS_DIR, "auth_js", "auth.wasm"), // Adjusted path
+      path.join(CIRCUITS_DIR, "auth_0001.zkey") // Adjusted path
     );
 
+    // Save proof and public signals
+    fs.writeFileSync(path.join(PROOFS_DIR, "proof.json"), JSON.stringify(proof));
+    fs.writeFileSync(
+      path.join(PROOFS_DIR, "publicSignals.json"),
+      JSON.stringify(publicSignals)
+    );
+
+    console.log("Proof generated successfully!");
     console.log("Proof:", proof);
     console.log("Public Signals:", publicSignals);
-
-    // Save proof and public signals
-    fs.writeFileSync("proofs/proof.json", JSON.stringify(proof));
-    fs.writeFileSync("proofs/publicSignals.json", JSON.stringify(publicSignals));
-}
-
-generateProof().catch((error) => {
+  } catch (error) {
     console.error("Error generating proof:", error);
+  }
+};
+
+// Example usage
+const publicKey = "123456"; // User's publicKey
+const hash = "3607056778794995795434385085847334626017449707154072104308864676240828390282"; // Hash of the publicKey
+generateProof(publicKey, hash).catch((error) => {
+  console.error("Error:", error);
 });

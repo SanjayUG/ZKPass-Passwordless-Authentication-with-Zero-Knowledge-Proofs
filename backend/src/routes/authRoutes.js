@@ -1,10 +1,13 @@
 // src/routes/authRoutes.js
 import express from "express";
-import { authenticate } from "../controllers/authController.js";
+import { loginUser, verifyZKP } from "../controllers/authController.js";
 
 const router = express.Router();
 
-// ZKP-based authentication route
-router.post("/authenticate", authenticate);
+// User login
+router.post("/login", loginUser);
+
+// ZKP verification
+router.post("/verify", verifyZKP);
 
 export default router;

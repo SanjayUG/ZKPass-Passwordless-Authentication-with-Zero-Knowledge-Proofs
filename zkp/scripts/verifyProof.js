@@ -1,22 +1,33 @@
+// zkp/scripts/verifyProof.js
 const { groth16 } = require("snarkjs");
 const fs = require("fs");
+const path = require("path");
 
-async function verifyProof() {
-    // Load proof and public signals
-    const proof = JSON.parse(fs.readFileSync("proofs/proof.json"));
-    const publicSignals = JSON.parse(fs.readFileSync("proofs/publicSignals.json"));
+const CIRCUITS_DIR = path.join(__dirname, "..", "circuits"); // Adjust path as needed
+const PROOFS_DIR = path.join(__dirname, "..", "proofs"); // Adjust path as needed
 
-    console.log("Proof:", proof);
-    console.log("Public Signals:", publicSignals);
+/**
+ * Verify a ZKP proof
+ */
+const verifyProof = async () => {
+  try {
+    const proof = JSON.parse(fs.readFileSync(path.join(PROOFS_DIR, "proof.json")));
+    const publicSignals = JSON.parse(
+      fs.readFileSync(path.join(PROOFS_DIR, "publicSignals.json"))
+    );
 
-    // Load verification key
-    const vKey = JSON.parse(fs.readFileSync("circuits/verification_key.json"));
+    const vKey = JSON.parse(
+      fs.readFileSync(path.join(CIRCUITS_DIR, "verification_key.json"))
+    );
 
-    // Verify the proof
     const isValid = await groth16.verify(vKey, publicSignals, proof);
     console.log("Proof is valid:", isValid);
-}
-
-verifyProof().catch((error) => {
+  } catch (error) {
     console.error("Error verifying proof:", error);
+  }
+};
+
+// Example usage
+verifyProof().catch((error) => {
+  console.error("Error verifying proof:", error);
 });

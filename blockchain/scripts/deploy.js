@@ -7,7 +7,7 @@ async function main() {
     // Fix: Use `waitForDeployment()` instead of `.deployed()`
     await authContract.waitForDeployment();
 
-    console.log("AuthContract deployed to:", authContract.target);
+    console.log("AuthContract Address deployed to:", authContract.target);
 }
 
 main().catch((error) => {
