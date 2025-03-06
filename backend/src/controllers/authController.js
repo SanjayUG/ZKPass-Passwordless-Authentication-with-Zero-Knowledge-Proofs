@@ -1,8 +1,9 @@
 // src/controllers/authController.js
 import Pubkey from "../models/Pubkey.js";
 import { generateKeys } from "../utils/keyGenerator.js";
-import { registerUserOnChain, isUserRegisteredOnChain } from "../services/blockchainService.js";
+import { registerUserOnChain, isPublicKeyRegisteredOnChain } from "../services/blockchainService.js";
 import { generateProof, verifyProof } from "../services/zkpService.js";
+import crypto from "crypto";
 
 /**
  * Register a new user
@@ -41,36 +42,34 @@ export const registerUser = async (req, res) => {
 };
 
 /**
- * Authenticate a user
+ * Login a user
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
 export const loginUser = async (req, res) => {
-  const { publicKey, privateKey } = req.body;
-
-  if (!publicKey || !privateKey) {
-    return res.status(400).json({ message: "Public key and private key are required" });
-  }
-
   try {
-    // Step 1: Check if the user is registered on the blockchain
-    const isRegistered = await isUserRegisteredOnChain(publicKey);
+    const { privateKey } = req.body;
 
+    // Generate the publicKey from the privateKey
+    const publicKey = "0x" + crypto.createHash("sha256").update(privateKey.slice(2), "hex").digest("hex");
+
+    // Check if the publicKey is registered on the blockchain
+    const isRegistered = await isPublicKeyRegisteredOnChain(publicKey);
     if (!isRegistered) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(400).json({ message: "User not registered" });
     }
 
-    // Step 2: Generate ZKP proof
+    // Generate a ZKP proof for the privateKey
     const { proof, publicSignals } = await generateProof(privateKey, publicKey);
 
-    // Step 3: Verify ZKP proof
-    const isValid = await verifyProof(proof, publicSignals);
-
-    if (isValid) {
-      return res.status(200).json({ message: "Login successful" });
-    } else {
-      return res.status(401).json({ message: "Invalid credentials" });
+    // Verify the ZKP proof
+    const isValidProof = await verifyProof(proof, publicSignals);
+    if (!isValidProof) {
+      return res.status(400).json({ message: "Invalid proof" });
     }
+
+    // Login successful
+    res.status(200).json({ message: "Login successful" });
   } catch (error) {
     console.error("Error during login:", error);
     res.status(500).json({ message: "Internal server error" });

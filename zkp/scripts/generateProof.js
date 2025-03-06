@@ -36,8 +36,8 @@ const generateProof = async (secret, hash) => {
 };
 
 // Example usage
-const publicKey = "123456"; // User's publicKey
-const hash = "3607056778794995795434385085847334626017449707154072104308864676240828390282"; // Hash of the publicKey
-generateProof(publicKey, hash).catch((error) => {
+const privateKey = "123456"; // User's privateKey
+const hash = "3607056778794995795434385085847334626017449707154072104308864676240828390282"; // Hash of the privateKey
+generateProof(privateKey, hash).catch((error) => {
   console.error("Error:", error);
 });

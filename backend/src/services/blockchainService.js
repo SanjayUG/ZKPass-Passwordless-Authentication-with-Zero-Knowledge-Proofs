@@ -1,3 +1,4 @@
+// src/services/blockchainService.js
 import { ethers } from "ethers";
 import dotenv from "dotenv";
 
@@ -7,8 +8,8 @@ const { ETHEREUM_RPC_URL, PRIVATE_KEY, CONTRACT_ADDRESS } = process.env;
 
 // ABI for the AuthContract
 const AUTH_CONTRACT_ABI = [
-  "function registerUser(address user, string memory publicKey)",
-  "function isRegistered(address user) view returns (bool)",
+  "function registerUser(string memory publicKey)",
+  "function isPublicKeyRegistered(string memory publicKey) view returns (bool)",
 ];
 
 // Initialize provider and signer
@@ -27,7 +28,7 @@ export const registerUserOnChain = async (publicKey) => {
   try {
     console.log("Registering user on-chain with publicKey:", publicKey);
 
-    const tx = await authContract.registerUser(signer.address, publicKey);
+    const tx = await authContract.registerUser(publicKey);
     const receipt = await tx.wait();
 
     console.log("User registered on-chain:", receipt);
@@ -39,16 +40,16 @@ export const registerUserOnChain = async (publicKey) => {
 };
 
 /**
- * Check if a user is registered on the blockchain
+ * Check if a publicKey is registered on the blockchain
  * @param {string} publicKey - User's public key
- * @returns {boolean} - True if the user is registered, false otherwise
+ * @returns {boolean} - True if the publicKey is registered, false otherwise
  */
-export const isUserRegisteredOnChain = async (publicKey) => {
+export const isPublicKeyRegisteredOnChain = async (publicKey) => {
   try {
-    const isRegistered = await authContract.isRegistered(signer.address);
+    const isRegistered = await authContract.isPublicKeyRegistered(publicKey);
     return isRegistered;
   } catch (error) {
-    console.error("Error checking user registration:", error);
-    throw new Error("Failed to check user registration");
+    console.error("Error checking publicKey registration:", error);
+    throw new Error("Failed to check publicKey registration");
   }
 };

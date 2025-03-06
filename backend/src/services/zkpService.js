@@ -1,3 +1,4 @@
+// src/services/zkpService.js
 import { groth16 } from "snarkjs";
 import fs from "fs";
 import path from "path";
@@ -9,8 +10,8 @@ const PROOFS_DIR = path.join(ZKP_DIR, "proofs");
 
 /**
  * Generate a ZKP proof for a given secret and hash
- * @param {string} secret - User's secret
- * @param {string} hash - Hash of the secret
+ * @param {string} secret - User's secret (privateKey)
+ * @param {string} hash - Hash of the secret (publicKey)
  * @returns {Object} - Proof and public signals
  */
 export const generateProof = async (secret, hash) => {
