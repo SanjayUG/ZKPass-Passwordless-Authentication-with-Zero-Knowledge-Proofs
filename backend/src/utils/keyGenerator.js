@@ -1,18 +1,16 @@
-// src/utils/keyGenerator.js
-import crypto from "crypto";
+import { randomBytes } from "crypto";
 import { buildPoseidon } from "circomlibjs";
 
 /**
- * Generate a public/private key pair
+ * Generate a public/private key pair using Poseidon hash
  * @returns {Object} - Public key and private key (0x-prefixed hex strings)
  */
 export const generateKeys = async () => {
-  const poseidon = await buildPoseidon(); // Initialize Poseidon
-  const privateKey = "0x" + crypto.randomBytes(32).toString("hex"); // 256-bit private key
+  const poseidon = await buildPoseidon();
+  const privateKey = BigInt("0x" + randomBytes(32).toString("hex"));
 
-  // Compute Poseidon hash of the private key
-  const hash = poseidon([BigInt(privateKey)]);
-  const publicKey = "0x" + poseidon.F.toString(hash); // Convert hash to hex string
+  // Ensure proper hashing using Poseidon
+  const publicKey = "0x" + poseidon.F.toString(poseidon([privateKey]));
 
-  return { publicKey, privateKey };
+  return { publicKey, privateKey: "0x" + privateKey.toString(16) };
 };

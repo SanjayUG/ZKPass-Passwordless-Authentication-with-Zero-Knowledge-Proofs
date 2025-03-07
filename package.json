@@ -1,0 +1,6 @@
+{
+  "name": "hardhat-project",
+  "dependencies": {
+    "circomlib": "^2.0.5"
+  }
+}
