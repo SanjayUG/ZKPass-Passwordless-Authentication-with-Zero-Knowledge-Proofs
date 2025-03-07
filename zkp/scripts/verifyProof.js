@@ -11,8 +11,6 @@ const PROOFS_DIR = path.join(__dirname, "..", "proofs"); // Adjust path as neede
  */
 const verifyProof = async () => {
   try {
-    console.log("Verifying proof...");
-
     const proof = JSON.parse(fs.readFileSync(path.join(PROOFS_DIR, "proof.json")));
     const publicSignals = JSON.parse(
       fs.readFileSync(path.join(PROOFS_DIR, "publicSignals.json"))

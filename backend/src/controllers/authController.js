@@ -3,7 +3,7 @@ import Pubkey from "../models/Pubkey.js";
 import { generateKeys } from "../utils/keyGenerator.js";
 import { registerUserOnChain, isPublicKeyRegisteredOnChain } from "../services/blockchainService.js";
 import { generateProof, verifyProof } from "../services/zkpService.js";
-import crypto from "crypto";
+import { buildPoseidon } from "circomlibjs";
 
 /**
  * Register a new user
@@ -17,7 +17,7 @@ export const registerUser = async (req, res) => {
 
     // Generate a unique public-private key pair
     while (!isKeyUnique) {
-      ({ publicKey, privateKey } = generateKeys());
+      ({ publicKey, privateKey } = await generateKeys()); // Await the result
 
       // Check if the publicKey already exists in the database
       const existingUser = await Pubkey.findOne({ publicKey });
@@ -50,8 +50,10 @@ export const loginUser = async (req, res) => {
   try {
     const { privateKey } = req.body;
 
-    // Generate the publicKey from the privateKey
-    const publicKey = "0x" + crypto.createHash("sha256").update(privateKey.slice(2), "hex").digest("hex");
+    // Generate the publicKey from the privateKey using Poseidon
+    const poseidon = await buildPoseidon();
+    const hash = poseidon([BigInt(privateKey)]);
+    const publicKey = "0x" + poseidon.F.toString(hash);
 
     // Check if the publicKey is registered on the blockchain
     const isRegistered = await isPublicKeyRegisteredOnChain(publicKey);

@@ -1,8 +1,8 @@
-
 // zkp/scripts/generateProof.js
 const { groth16 } = require("snarkjs");
 const fs = require("fs");
 const path = require("path");
+const { buildPoseidon } = require("circomlibjs");
 
 const CIRCUITS_DIR = path.join(__dirname, "..", "circuits"); // Adjust path as needed
 const PROOFS_DIR = path.join(__dirname, "..", "proofs"); // Adjust path as needed
@@ -36,8 +36,11 @@ const generateProof = async (secret, hash) => {
 };
 
 // Example usage
-const privateKey = "123456"; // User's privateKey
-const hash = "3607056778794995795434385085847334626017449707154072104308864676240828390282"; // Hash of the privateKey
-generateProof(privateKey, hash).catch((error) => {
-  console.error("Error:", error);
-});
+(async () => {
+  const poseidon = await buildPoseidon();
+  const privateKey = "0x3e65af30a63e945e99b730d9fadaaab698c5663ba314fa3ba2a34fc325411252"; // Example private key
+  const hash = poseidon.F.toString(poseidon([BigInt(privateKey)])); // Compute Poseidon hash
+  generateProof(privateKey, hash).catch((error) => {
+    console.error("Error:", error);
+  });
+})();
