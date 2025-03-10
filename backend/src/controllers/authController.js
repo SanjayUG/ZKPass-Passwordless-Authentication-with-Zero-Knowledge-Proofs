@@ -40,16 +40,9 @@ export const loginUser = async (req, res) => {
   try {
     const { privateKey } = req.body;
 
-<<<<<<< HEAD
-    // Generate the publicKey from the privateKey using Poseidon
-    const poseidon = await buildPoseidon(); 
-    const hash = poseidon([BigInt(privateKey)]);
-    const publicKey = "0x" + poseidon.F.toString(hash);
-=======
     const poseidon = await buildPoseidon();
     const privateKeyBigInt = BigInt(privateKey);
     const publicKey = "0x" + poseidon.F.toString(poseidon([privateKeyBigInt]));
->>>>>>> origin/coreBackendUpdate
 
     const isRegistered = await isPublicKeyRegisteredOnChain(publicKey);
     if (!isRegistered) {
