@@ -1,40 +1,31 @@
-// zkp/scripts/generateProof.js
 const { groth16 } = require("snarkjs");
 const fs = require("fs");
-const path = require("path");
-const { buildPoseidon } = require("circomlibjs");
+const circomlibjs = require("circomlibjs");
 
-const CIRCUITS_DIR = path.join(__dirname, "..", "circuits"); // Adjust path as needed
-const PROOFS_DIR = path.join(__dirname, "..", "proofs"); // Adjust path as needed
+// Compute Poseidon hash
+async function computeHash(secret) {
+    const poseidon = await circomlibjs.buildPoseidon(); // Initialize Poseidon
+    const hash = poseidon([BigInt(secret)]); // Compute Poseidon hash
+    return poseidon.F.toString(hash); // Convert hash to a string representation of the field element
+}
 
-/**
- * Generate a ZKP proof
- * @param {string} secret - User's secret
- * @param {string} hash - Hash of the secret
- */
-const generateProof = async (secret, hash) => {
-  try {
+async function generateProof() {
+    const secret = "123456"; // Secret input (as string)
+    const hash = await computeHash(secret); // Compute hash as a string
+
+    console.log("Secret:", secret);
+    console.log("Computed Hash:", hash);
+
     const { proof, publicSignals } = await groth16.fullProve(
-      { secret, hash },
-      path.join(CIRCUITS_DIR, "auth_js", "auth.wasm"), // Adjusted path
-      path.join(CIRCUITS_DIR, "auth_0001.zkey") // Adjusted path
+        { secret: secret, hash: hash }, // Inputs as strings
+        "circuits/auth_js/auth.wasm",  // Compiled circuit
+        "circuits/auth_0001.zkey"      // Proving key
     );
 
-    // Save proof and public signals
-    fs.writeFileSync(path.join(PROOFS_DIR, "proof.json"), JSON.stringify(proof));
-    fs.writeFileSync(
-      path.join(PROOFS_DIR, "publicSignals.json"),
-      JSON.stringify(publicSignals)
-    );
-
-    console.log("Proof generated successfully!");
     console.log("Proof:", proof);
     console.log("Public Signals:", publicSignals);
-  } catch (error) {
-    console.error("Error generating proof:", error);
-  }
-};
 
+<<<<<<< HEAD
 // Example usage
 (async () => {
   const poseidon = await buildPoseidon();
@@ -44,3 +35,13 @@ const generateProof = async (secret, hash) => {
     console.error("Error:", error);
   });
 })();
+=======
+    // Save proof and public signals
+    fs.writeFileSync("proofs/proof.json", JSON.stringify(proof));
+    fs.writeFileSync("proofs/publicSignals.json", JSON.stringify(publicSignals));
+}
+
+generateProof().catch((error) => {
+    console.error("Error generating proof:", error);
+});
+>>>>>>> origin/coreBackendUpdate
