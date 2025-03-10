@@ -51,7 +51,7 @@ export const loginUser = async (req, res) => {
     const { privateKey } = req.body;
 
     // Generate the publicKey from the privateKey using Poseidon
-    const poseidon = await buildPoseidon();
+    const poseidon = await buildPoseidon(); 
     const hash = poseidon([BigInt(privateKey)]);
     const publicKey = "0x" + poseidon.F.toString(hash);
 

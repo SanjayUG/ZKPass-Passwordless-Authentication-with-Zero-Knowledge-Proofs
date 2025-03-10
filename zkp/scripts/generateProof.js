@@ -38,9 +38,9 @@ const generateProof = async (secret, hash) => {
 // Example usage
 (async () => {
   const poseidon = await buildPoseidon();
-  const privateKey = "0x3e65af30a63e945e99b730d9fadaaab698c5663ba314fa3ba2a34fc325411252"; // Example private key
-  const hash = poseidon.F.toString(poseidon([BigInt(privateKey)])); // Compute Poseidon hash
-  generateProof(privateKey, hash).catch((error) => {
+  const secret = "0x3e65af30a63e945e99b730d9fadaaab698c5663ba314fa3ba2a34fc325411252"; // Example private key
+  const hash = poseidon.F.toString(poseidon([BigInt(secret)])); // Compute Poseidon hash
+  generateProof(secret, hash).catch((error) => {
     console.error("Error:", error);
   });
 })();
