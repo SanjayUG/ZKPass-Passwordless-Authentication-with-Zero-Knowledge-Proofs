@@ -12,3 +12,7 @@ npx hardhat node
 npx hardhat ignition deploy ./ignition/modules/Lock.js
 npx hardhat run scripts/deploy.js --network localhost
 ```
+## How to run the Blockchain:
+step1: run ```npx hardhat node``` in terminal.
+
+step2: run ```npx hardhat run scripts/deploy.js --network localhost``` in another termimal to get 'userAddress(user CONTRACT_ADDRESS)'

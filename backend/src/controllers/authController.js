@@ -1,40 +1,64 @@
-// src/controllers/authController.js
-import { generateAndVerifyProof } from "../utils/zkpHelpers.js";
-import { verifyUserOnChain, isUserVerifiedOnChain } from "../services/blockchainService.js";
+import Pubkey from "../models/Pubkey.js";
+import { generateKeys } from "../utils/keyGenerator.js";
+import { registerUserOnChain, isPublicKeyRegisteredOnChain } from "../services/blockchainService.js";
+import { generateProof, verifyProof } from "../services/zkpService.js";
+import { buildPoseidon } from "circomlibjs";
 
 /**
- * Handle ZKP-based authentication and on-chain verification
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Register a new user
  */
-export const authenticate = async (req, res) => {
-  const { secret, hash, userAddress } = req.body;
-
-  if (!secret || !hash || !userAddress) {
-    return res.status(400).json({ message: "Secret, hash, and userAddress are required" });
-  }
-
+export const registerUser = async (req, res) => {
   try {
-    // Step 1: Generate and verify ZKP proof
-    const isValid = await generateAndVerifyProof(secret, hash);
+    let publicKey, privateKey;
+    let isKeyUnique = false;
 
-    if (!isValid) {
-      return res.status(401).json({ message: "Authentication failed" });
+    while (!isKeyUnique) {
+      ({ publicKey, privateKey } = await generateKeys());
+
+      const existingUser = await Pubkey.findOne({ publicKey });
+      if (!existingUser) {
+        isKeyUnique = true;
+      }
     }
 
-    // Step 2: Verify user on-chain
-    await verifyUserOnChain(userAddress);
+    const newUser = new Pubkey({ publicKey });
+    await newUser.save();
 
-    // Step 3: Check if the user is verified on-chain
-    const isVerifiedOnChain = await isUserVerifiedOnChain(userAddress);
+    await registerUserOnChain(publicKey);
 
-    if (isVerifiedOnChain) {
-      return res.status(200).json({ message: "Authentication and on-chain verification successful" });
-    } else {
-      return res.status(500).json({ message: "On-chain verification failed" });
-    }
+    res.status(201).json({ publicKey, privateKey });
   } catch (error) {
-    console.error("Error in authentication:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    console.error("Error during registration:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/**
+ * Login a user
+ */
+export const loginUser = async (req, res) => {
+  try {
+    const { privateKey } = req.body;
+
+    const poseidon = await buildPoseidon();
+    const privateKeyBigInt = BigInt(privateKey);
+    const publicKey = "0x" + poseidon.F.toString(poseidon([privateKeyBigInt]));
+
+    const isRegistered = await isPublicKeyRegisteredOnChain(publicKey);
+    if (!isRegistered) {
+      return res.status(400).json({ message: "User not registered" });
+    }
+
+    const { proof, publicSignals } = await generateProof(privateKey, publicKey);
+    const isValidProof = await verifyProof(proof, publicSignals);
+
+    if (!isValidProof) {
+      return res.status(400).json({ message: "Invalid proof" });
+    }
+
+    res.status(200).json({ message: "Login successful" });
+  } catch (error) {
+    console.error("Error during login:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };

@@ -6,36 +6,50 @@ dotenv.config();
 
 const { ETHEREUM_RPC_URL, PRIVATE_KEY, CONTRACT_ADDRESS } = process.env;
 
+// ABI for the AuthContract
 const AUTH_CONTRACT_ABI = [
-  "function verifyUser(address user)",
-  "function isVerified(address user) view returns (bool)",
+  "function registerUser(string memory publicKey)",
+  "function isPublicKeyRegistered(string memory publicKey) view returns (bool)",
 ];
 
+// Initialize provider and signer
 const provider = new ethers.JsonRpcProvider(ETHEREUM_RPC_URL);
 const signer = new ethers.Wallet(PRIVATE_KEY, provider);
+
+// Initialize contract
 const authContract = new ethers.Contract(CONTRACT_ADDRESS, AUTH_CONTRACT_ABI, signer);
 
-export const verifyUserOnChain = async (userAddress) => {
+/**
+ * Register a user on the blockchain
+ * @param {string} publicKey - User's public key
+ * @returns {Object} - Transaction receipt
+ */
+export const registerUserOnChain = async (publicKey) => {
   try {
-    const tx = await authContract.verifyUser(userAddress);
+    console.log("Registering user on-chain with publicKey:", publicKey);
+
+    const tx = await authContract.registerUser(publicKey);
     const receipt = await tx.wait();
+
+    console.log("User registered on-chain:", receipt);
     return receipt;
   } catch (error) {
-    if (error.code === "INSUFFICIENT_FUNDS") {
-      throw new Error("Insufficient funds for gas");
-    } else if (error.code === "INVALID_ARGUMENT") {
-      throw new Error("Invalid Ethereum address");
-    } else {
-      throw new Error("Failed to verify user on-chain");
-    }
+    console.error("Error registering user on-chain:", error);
+    throw new Error("Failed to register user on-chain");
   }
 };
 
-export const isUserVerifiedOnChain = async (userAddress) => {
+/**
+ * Check if a publicKey is registered on the blockchain
+ * @param {string} publicKey - User's public key
+ * @returns {boolean} - True if the publicKey is registered, false otherwise
+ */
+export const isPublicKeyRegisteredOnChain = async (publicKey) => {
   try {
-    const isVerified = await authContract.isVerified(userAddress);
-    return isVerified;
+    const isRegistered = await authContract.isPublicKeyRegistered(publicKey);
+    return isRegistered;
   } catch (error) {
-    throw new Error("Failed to check user verification");
+    console.error("Error checking publicKey registration:", error);
+    throw new Error("Failed to check publicKey registration");
   }
 };
