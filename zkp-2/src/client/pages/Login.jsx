@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext';
 const Login = () => {
   const [formData, setFormData] = useState({
     username: '',
-    password: ''
+    password: '',
+    privateKey: '' // Add private key field
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,15 +26,15 @@ const Login = () => {
     setError('');
     setLoading(true);
     
-    const { username, password } = formData;
-    
-    if (!username || !password) {
+    const { username, password, privateKey } = formData; // Include private key
+
+    if (!username || !password || !privateKey) { // Check for private key
       setError('All fields are required');
       setLoading(false);
       return;
     }
     
-    const result = await login(username, password);
+    const result = await login(username, password, privateKey); // Pass private key to login function
     
     if (result.success) {
       navigate('/dashboard');
@@ -95,6 +96,22 @@ const Login = () => {
               onChange={handleChange}
               className="auth-input"
               placeholder="Enter your password"
+              disabled={loading}
+            />
+          </div>
+
+          <div> {/* Add private key input */}
+            <label className="block text-gray-700 text-sm font-medium mb-2" htmlFor="privateKey">
+              Private Key
+            </label>
+            <input
+              type="text"
+              id="privateKey"
+              name="privateKey"
+              value={formData.privateKey}
+              onChange={handleChange}
+              className="auth-input"
+              placeholder="Enter your private key"
               disabled={loading}
             />
           </div>
