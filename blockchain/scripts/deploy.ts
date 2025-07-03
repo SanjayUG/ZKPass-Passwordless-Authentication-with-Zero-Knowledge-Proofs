@@ -1,38 +1,21 @@
+// Deployment script for ZKPass contract
 import { ethers } from "hardhat";
-import fs from "fs";
-import path from "path";
 
 async function main() {
+  // Deploy ZKPass contract
   console.log("Deploying ZKPass contract...");
-
-  // Get the contract factory
   const ZKPass = await ethers.getContractFactory("ZKPass");
-
-  // Deploy the contract
   const zkPass = await ZKPass.deploy();
   await zkPass.waitForDeployment();
-
-  // Get the deployed contract address
   const contractAddress = await zkPass.getAddress();
-  console.log(`ZKPass deployed at: ${contractAddress}`);
+  console.log(`ZKPass deployed`);
 
-  // Save address and ABI to deployment/ZKPass.json
-  const deploymentInfo = {
-    address: contractAddress,
-    abi: ZKPass.interface.format("json"),
-  };
-
-  const outputPath = path.join(__dirname, "../deployment/ZKPass.json");
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  fs.writeFileSync(outputPath, JSON.stringify(deploymentInfo, null, 2));
-  console.log("Saved ABI and address to deployment/ZKPass.json");
-
-  // Print .env tip
-  console.log("\nAdd this to your .env file:");
+  // Log the contract address for .env file
+  console.log("\nAdd this address to your .env file:");
   console.log(`CONTRACT_ADDRESS=${contractAddress}  // ZKPass contract address`);
 }
 
-// Run the script
+// Execute the deployment
 main()
   .then(() => process.exit(0))
   .catch((error) => {

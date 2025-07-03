@@ -5,7 +5,6 @@ import authRoutes from './routes/auth';
 
 // Load environment variables
 dotenv.config();
-console.log("Loaded CONTRACT_ADDRESS:", process.env.CONTRACT_ADDRESS);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
