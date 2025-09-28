@@ -1,5 +1,9 @@
 import { useState } from 'react';
+import { deviceAuthService } from '../services/deviceAuthService';
+import { migrationService } from '../services/migrationService';
+import MigrationPrompt from './MigrationPrompt';
 import '../styles/Auth.css';
+import '../styles/MigrationPrompt.css';
 
 interface LoginProps {
   onLoginSuccess: (uid: string) => void;
@@ -10,6 +14,10 @@ const Login = ({ onLoginSuccess, onForgotUID }: LoginProps) => {
   const [uid, setUid] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showRecoveryPhrase, setShowRecoveryPhrase] = useState(false);
+  const [recoveryPhrase, setRecoveryPhrase] = useState('');
+  const [showMigrationPrompt, setShowMigrationPrompt] = useState(false);
+  const [migrationUid, setMigrationUid] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,29 +31,137 @@ const Login = ({ onLoginSuccess, onForgotUID }: LoginProps) => {
     try {
       setLoading(true);
       
-      // Call backend API to login - proof generation handled by backend
-      const response = await fetch('http://localhost:3001/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ uid })
-      });
+      // Check migration status first
+      const migrationStatus = await migrationService.checkMigrationStatus(uid);
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+      if (migrationStatus.needsMigration) {
+        // User exists in legacy system but needs migration
+        setMigrationUid(uid);
+        setShowMigrationPrompt(true);
+        setLoading(false);
+        return;
       }
       
-      // Login successful
-      onLoginSuccess(data.uid);
+      // Check if device has a stored device key
+      const hasDeviceKey = await deviceAuthService.hasDeviceKey(uid);
+      
+      if (hasDeviceKey) {
+        // Device is registered - authenticate using device key
+        await authenticateWithDeviceKey(uid);
+      } else {
+        // No device key found - trigger new device authorization flow
+        setShowRecoveryPhrase(true);
+        setLoading(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
+      setLoading(false);
+    }
+  };
+
+  const authenticateWithDeviceKey = async (uid: string) => {
+    try {
+      // Generate ZKP proof using device key and authenticate
+      const result = await deviceAuthService.authenticateWithDevice(uid);
+      
+      if (result.success) {
+        onLoginSuccess(uid);
+      } else {
+        throw new Error(result.message || 'Authentication failed');
+      }
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'Device authentication failed');
+    }
+  };
+
+  const handleRecoverySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    if (!recoveryPhrase.trim()) {
+      setError('Recovery phrase is required');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Authorize new device and authenticate
+      const result = await deviceAuthService.authorizeAndAuthenticate(uid, recoveryPhrase);
+      
+      if (result.success) {
+        onLoginSuccess(uid);
+      } else {
+        throw new Error(result.message || 'Device authorization failed');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Device authorization failed');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleBackToLogin = () => {
+    setShowRecoveryPhrase(false);
+    setRecoveryPhrase('');
+    setError('');
+  };
+
+  const handleMigrationComplete = (migratedUid: string) => {
+    setShowMigrationPrompt(false);
+    setMigrationUid('');
+    onLoginSuccess(migratedUid);
+  };
+
+  const handleMigrationCancel = () => {
+    setShowMigrationPrompt(false);
+    setMigrationUid('');
+    setError('');
+  };
+
+  if (showMigrationPrompt) {
+    return (
+      <MigrationPrompt
+        uid={migrationUid}
+        onMigrationComplete={handleMigrationComplete}
+        onCancel={handleMigrationCancel}
+      />
+    );
+  }
+
+  if (showRecoveryPhrase) {
+    return (
+      <div className="auth-container">
+        <h2>Authorize New Device</h2>
+        <p>This device is not authorized. Please enter your recovery phrase to authorize it.</p>
+        <form onSubmit={handleRecoverySubmit} className="auth-form">
+          <div className="form-group">
+            <label htmlFor="recoveryPhrase">Recovery Phrase</label>
+            <textarea
+              id="recoveryPhrase"
+              value={recoveryPhrase}
+              onChange={(e) => setRecoveryPhrase(e.target.value)}
+              placeholder="Enter your recovery phrase"
+              disabled={loading}
+              rows={3}
+            />
+          </div>
+          
+          {error && <div className="error-message">{error}</div>}
+          
+          <button type="submit" className="auth-button" disabled={loading}>
+            {loading ? 'Authorizing Device...' : 'Authorize Device'}
+          </button>
+          
+          <div className="forgot-link">
+            <button type="button" onClick={handleBackToLogin} className="text-button">
+              Back to Login
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-container">
@@ -66,7 +182,7 @@ const Login = ({ onLoginSuccess, onForgotUID }: LoginProps) => {
         {error && <div className="error-message">{error}</div>}
         
         <button type="submit" className="auth-button" disabled={loading}>
-          {loading ? 'Logging in...' : 'Login'}
+          {loading ? 'Checking Device...' : 'Login'}
         </button>
         
         <div className="forgot-link">

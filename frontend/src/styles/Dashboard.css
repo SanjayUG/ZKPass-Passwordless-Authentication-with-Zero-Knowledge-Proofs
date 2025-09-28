@@ -11,7 +11,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid #1a73e8; /* Solid blue border */
 }
@@ -34,6 +34,38 @@
 
 .logout-button:hover {
   background-color: #0d62d1; /* Darker blue on hover */
+}
+
+/* Dashboard Navigation */
+.dashboard-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid #e8f0fe;
+}
+
+.nav-tab {
+  padding: 0.75rem 1.5rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #666;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px 4px 0 0;
+}
+
+.nav-tab:hover {
+  color: #1a73e8;
+  background-color: #f8faff;
+}
+
+.nav-tab.active {
+  color: #1a73e8;
+  border-bottom-color: #1a73e8;
+  background-color: #f8faff;
 }
 
 .dashboard-content {

@@ -5,5 +5,5 @@
  * for the ZKPass authentication system.
  */
 
-export { generateProof, prepareProofForVerification } from './proofGenerator';
+export { generateProof, generateProofWithDeviceKey, prepareProofForVerification } from './proofGenerator';
 export { verifyProof } from './proofVerifier';

@@ -1,0 +1,112 @@
+/* Migration Prompt Styles */
+
+.migration-prompt {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 2rem;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.migration-prompt h2 {
+  color: #2563eb;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.migration-info {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.migration-info p {
+  margin-bottom: 1rem;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.migration-info p:last-child {
+  margin-bottom: 0;
+  font-weight: 500;
+}
+
+.migration-info ul {
+  margin: 1rem 0;
+  padding-left: 1.5rem;
+  color: #475569;
+}
+
+.migration-info li {
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.button-group {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.button-group .auth-button {
+  flex: 1;
+}
+
+.auth-button.primary {
+  background: #2563eb;
+  color: white;
+  border: none;
+}
+
+.auth-button.primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.auth-button.secondary {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.auth-button.secondary:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.migration-help {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.help-text {
+  font-size: 0.875rem;
+  color: #64748b;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.help-text strong {
+  color: #475569;
+}
+
+/* Responsive design */
+@media (max-width: 640px) {
+  .migration-prompt {
+    padding: 1.5rem;
+    margin: 1rem;
+  }
+  
+  .button-group {
+    flex-direction: column;
+  }
+  
+  .migration-info {
+    padding: 1rem;
+  }
+}

@@ -4,16 +4,23 @@ import { ethers } from 'ethers';
 import * as snarkjs from 'snarkjs';
 import { storeUIDOnBlockchain, checkUIDExists } from '../services/blockchain';
 import { WORD_MAP } from '../utils/wordMap';
+import { deviceRegistry } from '../services/deviceRegistry';
+import { deviceAuthService } from '../services/deviceAuth';
+import { securityLogger } from '../services/securityLogger';
 
-// Secret salt for key derivation (should be in .env)
-const SECRET_SALT = process.env.SECRET_SALT || 'zkpass_secret_salt_for_key_derivation';
+// Legacy SECRET_SALT removed for security reasons
+// Device key authentication no longer requires shared secrets
 
 /**
- * Register a new user with UID
+ * Register a new user with UID and optional device key
+ * Supports both initial registration and device key addition
  */
 export const register: RequestHandler = async (req, res) => {
+  const ipAddress = req.ip || req.connection.remoteAddress;
+  const userAgent = req.get('User-Agent');
+  
   try {
-    const { uid } = req.body;
+    const { uid, publicKeyJWK, deviceInfo } = req.body;
 
     if (!uid) {
       res.status(400).json({ success: false, message: 'UID is required' });
@@ -22,25 +29,23 @@ export const register: RequestHandler = async (req, res) => {
 
     // Check if UID already exists
     const uidExists = await checkUIDExists(uid);
-    if (uidExists) {
-      res.status(400).json({ success: false, message: 'UID already exists' });
-      return;
-    }
-
-    // Generate revoveryKey
-    const revoveryKey = crypto.randomBytes(32).toString('hex');
     
-    // Generate recovery phrase (using the new method)
-    const recoveryPhrase = generateRecoveryPhrase(uid, revoveryKey);
-
-    // Store UID on blockchain
-    await storeUIDOnBlockchain(uid);
-
-    res.status(201).json({
-      success: true,
-      message: 'Registration successful',
-      recoveryPhrase
+    // If UID doesn't exist, this is initial registration
+    if (!uidExists) {
+      return await handleInitialRegistration(req, res, uid, publicKeyJWK, deviceInfo, ipAddress, userAgent);
+    }
+    
+    // If UID exists and device key is provided, this is device key addition
+    if (publicKeyJWK) {
+      return await handleDeviceKeyAddition(req, res, uid, publicKeyJWK, deviceInfo, ipAddress, userAgent);
+    }
+    
+    // UID exists but no device key provided - invalid request
+    res.status(400).json({ 
+      success: false, 
+      message: 'UID already exists. To add device key, provide publicKeyJWK.' 
     });
+    
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ success: false, message: 'Server error during registration' });
@@ -48,11 +53,161 @@ export const register: RequestHandler = async (req, res) => {
 };
 
 /**
- * Login with UID and generate ZKP proof
+ * Handle initial user registration with optional device key
+ */
+async function handleInitialRegistration(
+  req: Request,
+  res: Response,
+  uid: string,
+  publicKeyJWK?: JsonWebKey,
+  deviceInfo?: any,
+  ipAddress?: string,
+  userAgent?: string
+): Promise<void> {
+  try {
+    // Generate recovery key and phrase
+    const revoveryKey = crypto.randomBytes(32).toString('hex');
+    const recoveryPhrase = generateRecoveryPhrase(uid, revoveryKey);
+
+    // Store UID on blockchain first - this is the critical step
+    await storeUIDOnBlockchain(uid);
+    console.log('UID stored on blockchain successfully:', uid);
+
+    let deviceId: string | undefined;
+    let deviceSetupFailed = false;
+    let deviceError: string | undefined;
+
+    // If device public key is provided, register the device after successful UID registration
+    if (publicKeyJWK) {
+      try {
+        // Validate public key format
+        if (!deviceAuthService.validatePublicKey(publicKeyJWK)) {
+          throw new Error('Invalid device public key format');
+        }
+
+        // Generate device ID and register the device
+        deviceId = deviceAuthService.generateDeviceId(publicKeyJWK);
+        await deviceRegistry.storeDeviceKey(uid, deviceId, publicKeyJWK, deviceInfo);
+
+        // Log successful device registration
+        securityLogger.logDeviceRegistration(uid, deviceId, true, ipAddress, userAgent);
+        console.log('Device key registered successfully during initial registration:', deviceId);
+        
+      } catch (deviceRegistrationError) {
+        deviceSetupFailed = true;
+        deviceError = deviceRegistrationError instanceof Error 
+          ? deviceRegistrationError.message 
+          : 'Unknown device registration error';
+          
+        securityLogger.logDeviceRegistration(uid, deviceId || 'unknown', false, ipAddress, userAgent, deviceError);
+        console.error('Device registration failed during initial registration:', deviceRegistrationError);
+      }
+    }
+
+    // Return registration result
+    const response: any = {
+      success: true,
+      message: deviceSetupFailed 
+        ? 'Registration successful, but device setup failed'
+        : 'Registration successful',
+      recoveryPhrase
+    };
+
+    if (deviceId) {
+      response.deviceId = deviceId;
+    }
+
+    if (deviceSetupFailed) {
+      response.deviceSetupFailed = true;
+      response.deviceError = deviceError;
+    }
+
+    res.status(201).json(response);
+    
+  } catch (error) {
+    console.error('Initial registration failed:', error);
+    
+    // If blockchain registration fails, the entire registration fails
+    const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+    res.status(500).json({ 
+      success: false, 
+      message: errorMessage.includes('already exists') 
+        ? 'UID already exists' 
+        : 'Server error during registration'
+    });
+  }
+}
+
+/**
+ * Handle device key addition to existing user
+ */
+async function handleDeviceKeyAddition(
+  req: Request,
+  res: Response,
+  uid: string,
+  publicKeyJWK: JsonWebKey,
+  deviceInfo?: any,
+  ipAddress?: string,
+  userAgent?: string
+): Promise<void> {
+  try {
+    // Validate public key format
+    if (!deviceAuthService.validatePublicKey(publicKeyJWK)) {
+      securityLogger.logDeviceRegistration(uid, 'unknown', false, ipAddress, userAgent, 'Invalid public key format');
+      res.status(400).json({
+        success: false,
+        message: 'Invalid device public key format'
+      });
+      return;
+    }
+
+    // Generate device ID and register the device
+    const deviceId = deviceAuthService.generateDeviceId(publicKeyJWK);
+    await deviceRegistry.storeDeviceKey(uid, deviceId, publicKeyJWK, deviceInfo);
+
+    // Log successful device registration
+    securityLogger.logDeviceRegistration(uid, deviceId, true, ipAddress, userAgent);
+    console.log('Device key added successfully to existing user:', { uid, deviceId });
+
+    res.status(201).json({
+      success: true,
+      message: 'Device key registered successfully',
+      deviceId
+    });
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown device registration error';
+    securityLogger.logDeviceRegistration(uid, 'unknown', false, ipAddress, userAgent, errorMessage);
+    console.error('Device key addition failed:', error);
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to register device key',
+      deviceError: errorMessage
+    });
+  }
+}
+
+/**
+ * Legacy login endpoint - DEPRECATED
+ * This endpoint has been removed for security reasons.
+ * Use device key authentication instead.
  */
 export const login: RequestHandler = async (req, res) => {
+  res.status(410).json({
+    success: false,
+    message: 'Legacy authentication has been disabled for security reasons. Please use device key authentication.',
+    migrationRequired: true
+  });
+};
+
+/**
+ * Check if a user exists on the blockchain
+ * Used for migration detection
+ */
+export const checkUser: RequestHandler = async (req, res) => {
   try {
-    const { uid } = req.body;
+    const { uid } = req.params;
 
     if (!uid) {
       res.status(400).json({ success: false, message: 'UID is required' });
@@ -61,38 +216,15 @@ export const login: RequestHandler = async (req, res) => {
 
     // Check if UID exists on blockchain
     const uidExists = await checkUIDExists(uid);
-    if (!uidExists) {
-      res.status(404).json({ success: false, message: 'User not found' });
-      return;
-    }
-
-    // Derive privateKey from uid following the algorithm
-    // 1. Reverse UID
-    // 2. Take odd indices
-    // 3. Append secret salt
-    // 4. SHA-256 the result
-    const privateKey = derivePrivateKey(uid);
     
-    // Generate ZKP proof using uid and privateKey
-    const { generateProof } = await import('../../zkp/proofGenerator');
-    const proof = await generateProof(uid, privateKey);
-    
-    // Verify ZKP proof
-    const { verifyProof } = await import('../../zkp/proofVerifier');
-    const isProofValid = await verifyProof(proof, uid);
-    if (!isProofValid) {
-      res.status(401).json({ success: false, message: 'Invalid credentials' });
-      return;
-    }
-
     res.status(200).json({
       success: true,
-      message: 'Login successful',
-      uid
+      exists: uidExists,
+      uid: uidExists ? uid : undefined
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ success: false, message: 'Server error during login' });
+    console.error('Check user error:', error);
+    res.status(500).json({ success: false, message: 'Server error during user check' });
   }
 };
 
@@ -165,39 +297,27 @@ export const verifyRecoveryPhrase: RequestHandler = async (req, res) => {
 };
 
 /**
- * Derive a private key from the UID
+ * Legacy private key derivation - REMOVED FOR SECURITY
+ * This function has been removed as it used a shared SECRET_SALT
+ * which created a security vulnerability.
  */
 function derivePrivateKey(uid: string): string {
-  // Step 1: Reverse the UID
-  const reversed = uid.split('').reverse().join('');
-
-  // Step 2: Take characters at odd indices
-  const oddChars = reversed
-    .split('')
-    .filter((_, index) => index % 2 === 1)
-    .join('');
-
-  // Step 3: Concatenate with a static salt (known only to you)
-  const withSalt = oddChars + SECRET_SALT;
-
-  // Step 4: SHA-256 the result
-  const privateKey = crypto.createHash('sha256').update(withSalt).digest('hex');
-  
-  return privateKey;
+  throw new Error('Legacy private key derivation has been disabled for security reasons. Use device key authentication instead.');
 }
 
 /**
  * Generate a recovery phrase from UID and private key
+ * Updated to use secure random salt instead of shared SECRET_SALT
  */
 const generateRecoveryPhrase = (uid: string, revoveryKey: string): string => {
   // Take 3 random characters from the revoveryKey
   const recvKeyChar = revoveryKey.substring(0, 3);
   
-  // Take 3 random characters from the salt
-  const saltChars = SECRET_SALT.substring(0, 3);
+  // Generate 3 random characters instead of using shared salt
+  const randomSalt = crypto.randomBytes(3).toString('hex').substring(0, 3);
   
-  // Combine: recvKeyChar + uid + saltChars
-  const combinedString = recvKeyChar + uid + saltChars;
+  // Combine: recvKeyChar + uid + randomSalt
+  const combinedString = recvKeyChar + uid + randomSalt;
   
   // Generate phrase from combined string using word map
   let phraseParts: string[] = [];
@@ -217,7 +337,8 @@ const generateRecoveryPhrase = (uid: string, revoveryKey: string): string => {
 };
 
 /**
- * Derive UID and private key information from recovery phrase
+ * Derive UID from recovery phrase
+ * Updated to only return UID, not private key (for security)
  */
 const deriveUIDFromRecoveryPhrase = (recoveryPhrase: string): { uid: string, privateKey: string } => {
   const words = recoveryPhrase.split(' ');
@@ -239,20 +360,15 @@ const deriveUIDFromRecoveryPhrase = (recoveryPhrase: string): { uid: string, pri
   // The first 3 characters are from the private key
   const priKeyChars = combinedString.substring(0, 3);
   
-  // The last 3 characters are from the salt
+  // The last 3 characters are from the salt (now random, not shared)
   const saltChars = combinedString.substring(combinedString.length - 3);
   
   // The middle part is the UID
   const uid = combinedString.substring(3, combinedString.length - 3);
   
-  // Recreate a private key using the private key chars and derivation function
-  // const publicKey = priKeyChars + uid; // Create a pseudo-public key
-  const privateKey = derivePrivateKey(uid);
+  // Return a placeholder private key since we no longer derive keys from UID
+  // This maintains backward compatibility for recovery phrase verification
+  const placeholderPrivateKey = crypto.createHash('sha256').update(uid + priKeyChars + saltChars).digest('hex');
   
-  // Ensure the private key is a valid hex string
-  const validPrivateKey = /^[0-9a-fA-F]+$/.test(privateKey) 
-    ? privateKey 
-    : crypto.createHash('sha256').update(privateKey).digest('hex');
-  
-  return { uid, privateKey: validPrivateKey };
+  return { uid, privateKey: placeholderPrivateKey };
 };

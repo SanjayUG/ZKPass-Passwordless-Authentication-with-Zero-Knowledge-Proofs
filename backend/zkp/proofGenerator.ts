@@ -1,21 +1,19 @@
 import crypto from 'crypto';
 
 /**
- * Generate a ZKP proof using the specified algorithm
- * 1. Take the first half and second half of privKey and hash them separately
- * 2. Concatenate the first half at beginning of uid and second half at last of uid
- * 3. Hash the combined string
+ * Generate a ZKP proof using device key signature as secret input
+ * This is the secure method that replaces legacy UID-based key derivation
  * 
  * @param uid User's unique identifier
- * @param privateKey User's private key
+ * @param deviceSignature Device signature used as secret input (NOT a derived private key)
  * @returns The generated proof
  */
-export const generateProof = async (uid: string, privateKey: string): Promise<string> => {
+export const generateProof = async (uid: string, deviceSignature: string): Promise<string> => {
   try {
-    // 1. Split the private key into two halves
-    const halfLength = Math.floor(privateKey.length / 2);
-    const firstHalf = privateKey.substring(0, halfLength);
-    const secondHalf = privateKey.substring(halfLength);
+    // 1. Split the device signature into two halves
+    const halfLength = Math.floor(deviceSignature.length / 2);
+    const firstHalf = deviceSignature.substring(0, halfLength);
+    const secondHalf = deviceSignature.substring(halfLength);
     
     // Hash each half separately
     const hashedFirstHalf = crypto.createHash('sha256').update(firstHalf).digest('hex');
@@ -24,14 +22,41 @@ export const generateProof = async (uid: string, privateKey: string): Promise<st
     // 2. Concatenate: hashedFirstHalf + uid + hashedSecondHalf
     const combinedString = hashedFirstHalf + uid + hashedSecondHalf;
     
-    // 3. Hash the combined string
+    // 3. Hash the combined string to create the ZKP proof
     const proof = crypto.createHash('sha256').update(combinedString).digest('hex');
     
     return proof;
   } catch (error) {
-    console.error('Error generating ZKP proof:', error);
-    throw new Error('Failed to generate ZKP proof');
+    console.error('Error generating ZKP proof with device signature:', error);
+    throw new Error('Failed to generate ZKP proof with device signature');
   }
+};
+
+/**
+ * Generate a ZKP proof using device key signature as the secret input
+ * This replaces the derived private key with a device-specific signature
+ * 
+ * @param uid User's unique identifier
+ * @param deviceSignature Signature generated using device private key
+ * @returns The generated proof
+ */
+export const generateProofWithDeviceKey = async (uid: string, deviceSignature: string): Promise<string> => {
+  try {
+    // Use the device signature as the "private key" input to the existing algorithm
+    // This ensures the proof is tied to the specific device that generated the signature
+    return await generateProof(uid, deviceSignature);
+  } catch (error) {
+    console.error('Error generating ZKP proof with device key:', error);
+    throw new Error('Failed to generate ZKP proof with device key');
+  }
+};
+
+/**
+ * Legacy ZKP generation - DEPRECATED AND REMOVED
+ * This function has been removed for security reasons
+ */
+export const generateProofWithLegacyKey = async (uid: string): Promise<string> => {
+  throw new Error('Legacy ZKP generation has been disabled for security reasons. Use device key authentication instead.');
 };
 
 /**

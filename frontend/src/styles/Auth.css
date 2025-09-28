@@ -43,8 +43,7 @@ input {
   border-radius: 4px;
   font-size: 1rem;
   transition: all 0.3s ease;
-  background-color: #111111;
-  color: var(--text-color);
+  color: #111111;
 }
 
 input:focus {

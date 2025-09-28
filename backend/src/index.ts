@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth';
+import deviceAuthRoutes from './routes/deviceAuth';
+import securityRoutes from './routes/security';
 
 // Load environment variables
 dotenv.config();
@@ -16,10 +18,27 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/device-auth', deviceAuthRoutes);
+app.use('/api/security', securityRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'ZKPass backend is running' });
+  const { deviceRegistry } = require('./services/deviceRegistry');
+  const { securityLogger } = require('./services/securityLogger');
+  
+  const deviceStats = deviceRegistry.getStats();
+  const securityStats = securityLogger.getSecurityStats();
+  
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'ZKPass backend is running',
+    deviceRegistry: deviceStats,
+    security: {
+      totalEvents: securityStats.totalEvents,
+      lockedAccounts: securityStats.lockedAccounts,
+      failureRate: securityStats.failureRate
+    }
+  });
 });
 
 // Start server

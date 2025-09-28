@@ -1,4 +1,4 @@
-import React from 'react';
+// App.tsx
 import { Web3Provider } from './utils/Web3Context';
 import { WalletConnect } from './components/WalletConnect';
 import { useState } from 'react';

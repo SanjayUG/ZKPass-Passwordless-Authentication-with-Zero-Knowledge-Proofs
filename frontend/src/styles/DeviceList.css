@@ -1,0 +1,378 @@
+/* Device List Styling */
+
+.device-list-container {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(26, 115, 232, 0.15);
+  border: 1px solid #e8f0fe;
+  overflow: hidden;
+}
+
+.device-list-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #e8f0fe;
+  background-color: #f8faff;
+}
+
+.device-list-header h3 {
+  margin: 0 0 0.5rem 0;
+  color: #1a73e8;
+  font-size: 1.25rem;
+}
+
+.device-list-description {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+/* No Devices State */
+.no-devices {
+  padding: 3rem 2rem;
+  text-align: center;
+  color: #666;
+}
+
+.no-devices-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.no-devices h3 {
+  margin: 0 0 1rem 0;
+  color: #1a73e8;
+  font-size: 1.25rem;
+}
+
+.no-devices p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* Device List */
+.device-list {
+  padding: 0;
+}
+
+.device-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e8f0fe;
+  transition: background-color 0.2s;
+}
+
+.device-card:last-child {
+  border-bottom: none;
+}
+
+.device-card:hover {
+  background-color: #f8faff;
+}
+
+.device-card.current-device {
+  background-color: #e8f0fe;
+  border-left: 4px solid #1a73e8;
+}
+
+.device-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.device-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.device-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
+.device-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.device-name {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.1rem;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.current-device-badge {
+  background-color: #1a73e8;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.device-id {
+  margin: 0;
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.device-metadata {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.device-dates {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.date-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.date-label {
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.date-value {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.device-user-agent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.user-agent-label {
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.user-agent-value {
+  font-size: 0.85rem;
+  color: #666;
+  font-family: monospace;
+}
+
+/* Device Actions */
+.device-actions {
+  flex-shrink: 0;
+  margin-left: 1rem;
+}
+
+.revoke-button {
+  padding: 0.5rem 1rem;
+  background-color: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 120px;
+  justify-content: center;
+}
+
+.revoke-button:hover:not(:disabled) {
+  background-color: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.revoke-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.button-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Confirmation Modal */
+.confirmation-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.confirmation-modal {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.confirmation-header {
+  padding: 1.5rem 1.5rem 0 1.5rem;
+  border-bottom: 1px solid #e8f0fe;
+}
+
+.confirmation-header h3 {
+  margin: 0;
+  color: #1a73e8;
+  font-size: 1.25rem;
+}
+
+.confirmation-content {
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.warning-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.confirmation-content p {
+  margin: 0 0 1rem 0;
+  color: #333;
+  line-height: 1.5;
+}
+
+.confirmation-warning {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.current-device-warning {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
+  color: #dc2626;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.confirmation-actions {
+  padding: 0 1.5rem 1.5rem 1.5rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.cancel-button {
+  padding: 0.75rem 1.5rem;
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-button:hover:not(:disabled) {
+  background-color: #e5e7eb;
+}
+
+.cancel-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.confirm-revoke-button {
+  padding: 0.75rem 1.5rem;
+  background-color: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 140px;
+  justify-content: center;
+}
+
+.confirm-revoke-button:hover:not(:disabled) {
+  background-color: #b91c1c;
+}
+
+.confirm-revoke-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .device-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .device-actions {
+    margin-left: 0;
+  }
+  
+  .revoke-button {
+    width: 100%;
+  }
+  
+  .device-dates {
+    gap: 1rem;
+  }
+  
+  .confirmation-actions {
+    flex-direction: column;
+  }
+  
+  .cancel-button,
+  .confirm-revoke-button {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -6,5 +6,5 @@ CONTRACT_ADDRESS=
 BLOCKCHAIN_RPC_URL=http://localhost:8545
 
 # Authentication Configuration
-SECRET_SALT=zkpass_secret_salt_for_key_derivation
+# SECRET_SALT removed for security - device key authentication no longer uses shared secrets
 
