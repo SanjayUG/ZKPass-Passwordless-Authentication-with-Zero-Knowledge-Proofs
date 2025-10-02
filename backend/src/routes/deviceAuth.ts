@@ -9,21 +9,43 @@ import {
   authorizeDevice, 
   listDevices, 
   revokeDevice,
-  generateZKP
+  generateZKP,
+  enhancedAuthenticate,
+  authenticateWithZKP,
+  generateZKProofEnhanced,
+  registerDeviceWithZKP,
+  checkMigrationStatus,
+  migrateLegacyUser,
+  getAuthMethods,
+  healthCheckEnhanced
 } from '../controllers/deviceAuth';
 import { securityLogger } from '../services/securityLogger';
 
 const router = Router();
 
+// Enhanced authentication endpoints
+router.post('/authenticate', enhancedAuthenticate);
+router.post('/authenticate/zkp', authenticateWithZKP);
+
 // ZKP generation and verification
 router.post('/generate-zkp', generateZKP);
+router.post('/proof/generate', generateZKProofEnhanced);
 router.post('/verify-zkp', verifyDeviceZKP);
 
 // Device management
 router.post('/register', registerDevice);
+router.post('/device/register', registerDeviceWithZKP);
 router.post('/authorize', authorizeDevice);
 router.get('/devices/:uid', listDevices);
+router.get('/methods/:uid', getAuthMethods);
 router.delete('/devices/:uid/:deviceId', revokeDevice);
+
+// Migration support
+router.get('/migration/status/:uid', checkMigrationStatus);
+router.post('/migration/migrate', migrateLegacyUser);
+
+// Health check
+router.get('/health', healthCheckEnhanced);
 
 // Security monitoring endpoint (for admin/monitoring purposes)
 router.get('/security/logs/:uid', (req, res) => {

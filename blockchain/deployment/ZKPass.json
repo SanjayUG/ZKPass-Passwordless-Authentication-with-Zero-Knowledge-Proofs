@@ -1,9 +1,16 @@
 {
   "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
   "abi": [
+    "event DeviceRegistered(string indexed,string indexed,string)",
+    "event DeviceRevoked(string indexed,string indexed)",
     "event UIDRegistered(string indexed)",
     "function checkUID(string) view returns (bool)",
+    "function getActiveDevices(string) view returns (string[])",
+    "function getDevicePublicKeyHash(string,string) view returns (string)",
+    "function isDeviceActive(string,string) view returns (bool)",
+    "function registerDevice(string,string,string)",
     "function registerUID(string)",
+    "function revokeDevice(string,string)",
     "function verifyProof(string,string) view returns (bool)"
   ]
 }

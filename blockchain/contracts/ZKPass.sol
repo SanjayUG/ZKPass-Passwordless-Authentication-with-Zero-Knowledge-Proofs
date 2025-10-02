@@ -9,8 +9,23 @@ contract ZKPass {
     // Mapping to store registered UIDs
     mapping(string => bool) private registeredUIDs;
     
+    // Mapping to store device registrations: uid => deviceId => isActive
+    mapping(string => mapping(string => bool)) private userDevices;
+    
+    // Mapping to store device public key hashes: uid => deviceId => publicKeyHash
+    mapping(string => mapping(string => string)) private devicePublicKeyHashes;
+    
+    // Mapping to store list of device IDs for each user: uid => deviceId[]
+    mapping(string => string[]) private userDeviceList;
+    
     // Event emitted when a new UID is registered
     event UIDRegistered(string indexed uid);
+    
+    // Event emitted when a device is registered
+    event DeviceRegistered(string indexed uid, string indexed deviceId, string publicKeyHash);
+    
+    // Event emitted when a device is revoked
+    event DeviceRevoked(string indexed uid, string indexed deviceId);
     
     /**
      * @dev Register a new UID
@@ -38,6 +53,110 @@ contract ZKPass {
      */
     function checkUID(string memory uid) public view returns (bool) {
         return registeredUIDs[uid];
+    }
+    
+    /**
+     * @dev Register a device for a user
+     * @param uid The unique identifier of the user
+     * @param deviceId The device identifier
+     * @param publicKeyHash The hash of the device's public key
+     */
+    function registerDevice(string memory uid, string memory deviceId, string memory publicKeyHash) public {
+        // Ensure UID exists
+        require(registeredUIDs[uid], "UID not registered");
+        
+        // Ensure device ID is not empty
+        require(bytes(deviceId).length > 0, "Device ID cannot be empty");
+        
+        // Ensure public key hash is not empty
+        require(bytes(publicKeyHash).length > 0, "Public key hash cannot be empty");
+        
+        // If device is not already registered for this user, add it to the list
+        if (!userDevices[uid][deviceId]) {
+            userDeviceList[uid].push(deviceId);
+        }
+        
+        // Register the device
+        userDevices[uid][deviceId] = true;
+        devicePublicKeyHashes[uid][deviceId] = publicKeyHash;
+        
+        // Emit event
+        emit DeviceRegistered(uid, deviceId, publicKeyHash);
+    }
+    
+    /**
+     * @dev Revoke a device for a user
+     * @param uid The unique identifier of the user
+     * @param deviceId The device identifier to revoke
+     */
+    function revokeDevice(string memory uid, string memory deviceId) public {
+        // Ensure UID exists
+        require(registeredUIDs[uid], "UID not registered");
+        
+        // Ensure device is currently active
+        require(userDevices[uid][deviceId], "Device not registered or already revoked");
+        
+        // Revoke the device
+        userDevices[uid][deviceId] = false;
+        
+        // Clear the public key hash
+        devicePublicKeyHashes[uid][deviceId] = "";
+        
+        // Emit event
+        emit DeviceRevoked(uid, deviceId);
+    }
+    
+    /**
+     * @dev Check if a device is active for a user
+     * @param uid The unique identifier of the user
+     * @param deviceId The device identifier to check
+     * @return bool True if the device is active, false otherwise
+     */
+    function isDeviceActive(string memory uid, string memory deviceId) public view returns (bool) {
+        return userDevices[uid][deviceId];
+    }
+    
+    /**
+     * @dev Get all active devices for a user
+     * @param uid The unique identifier of the user
+     * @return string[] Array of active device IDs
+     */
+    function getActiveDevices(string memory uid) public view returns (string[] memory) {
+        string[] memory allDevices = userDeviceList[uid];
+        
+        // Count active devices
+        uint activeCount = 0;
+        for (uint i = 0; i < allDevices.length; i++) {
+            if (userDevices[uid][allDevices[i]]) {
+                activeCount++;
+            }
+        }
+        
+        // Create array of active devices
+        string[] memory activeDevices = new string[](activeCount);
+        uint activeIndex = 0;
+        
+        for (uint i = 0; i < allDevices.length; i++) {
+            if (userDevices[uid][allDevices[i]]) {
+                activeDevices[activeIndex] = allDevices[i];
+                activeIndex++;
+            }
+        }
+        
+        return activeDevices;
+    }
+    
+    /**
+     * @dev Get the public key hash for a specific device
+     * @param uid The unique identifier of the user
+     * @param deviceId The device identifier
+     * @return string The public key hash, empty if device is not active
+     */
+    function getDevicePublicKeyHash(string memory uid, string memory deviceId) public view returns (string memory) {
+        if (!userDevices[uid][deviceId]) {
+            return "";
+        }
+        return devicePublicKeyHashes[uid][deviceId];
     }
     
     /**

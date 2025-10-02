@@ -1,125 +1,173 @@
 /**
  * Device Registry Service
- * Manages device public keys and authentication challenges in memory
+ * Manages device public keys and authentication challenges with persistent storage
  */
 
 import crypto from 'crypto';
 import { DeviceInfo } from '../types/device';
+import { 
+  registerDeviceOnBlockchain, 
+  revokeDeviceOnBlockchain, 
+  isDeviceActiveOnBlockchain, 
+  getActiveDevicesFromBlockchain 
+} from './blockchain';
 
 class DeviceRegistryService {
-  // In-memory storage for device public keys
-  private devices: Map<string, DeviceInfo[]> = new Map(); // uid -> DeviceInfo[]
+  // No local storage - using blockchain for persistence
   
 
 
   /**
-   * Store a device public key for a user
+   * Store a device public key for a user on blockchain
    */
   async storeDeviceKey(uid: string, deviceId: string, publicKeyJWK: JsonWebKey, deviceInfo?: Partial<DeviceInfo>): Promise<void> {
-    const device: DeviceInfo = {
-      deviceId,
-      uid,
-      publicKeyJWK,
-      createdAt: new Date(),
-      lastUsed: new Date(),
-      deviceName: deviceInfo?.deviceName,
-      userAgent: deviceInfo?.userAgent
-    };
-
-    if (!this.devices.has(uid)) {
-      this.devices.set(uid, []);
+    try {
+      // Create a hash of the public key for blockchain storage
+      const publicKeyHash = this.createPublicKeyHash(publicKeyJWK);
+      
+      // Store device on blockchain
+      await registerDeviceOnBlockchain(uid, deviceId, publicKeyHash);
+      
+      // Note: We don't store the full DeviceInfo on blockchain for privacy
+      // Only the device ID and public key hash are stored
+      // Additional metadata like deviceName, userAgent are not stored
+    } catch (error) {
+      console.error('Failed to store device key on blockchain:', error);
+      throw new Error('Failed to register device');
     }
-
-    const userDevices = this.devices.get(uid)!;
-    
-    // Remove existing device with same deviceId if it exists
-    const existingIndex = userDevices.findIndex(d => d.deviceId === deviceId);
-    if (existingIndex !== -1) {
-      userDevices.splice(existingIndex, 1);
-    }
-
-    userDevices.push(device);
   }
 
   /**
-   * Get a device public key for verification
+   * Create a hash of the public key for blockchain storage
+   */
+  private createPublicKeyHash(publicKeyJWK: JsonWebKey): string {
+    // Create a deterministic hash of the public key
+    const keyString = JSON.stringify({
+      kty: publicKeyJWK.kty,
+      crv: publicKeyJWK.crv,
+      x: publicKeyJWK.x,
+      y: publicKeyJWK.y
+    });
+    
+    return crypto.createHash('sha256').update(keyString).digest('hex');
+  }
+
+  /**
+   * Check if a device is active (blockchain doesn't store full public keys for privacy)
+   * Note: This method is deprecated in blockchain-based storage
    */
   async getDeviceKey(uid: string, deviceId: string): Promise<JsonWebKey | null> {
-    const userDevices = this.devices.get(uid);
-    if (!userDevices) {
-      return null;
-    }
-
-    const device = userDevices.find(d => d.deviceId === deviceId);
-    if (!device) {
-      return null;
-    }
-
-    // Update last used timestamp
-    device.lastUsed = new Date();
-    
-    return device.publicKeyJWK;
+    // In blockchain storage, we don't store full public keys for privacy
+    // ZKP verification works without needing to retrieve the full public key
+    // This method is kept for backward compatibility but returns null
+    console.warn('getDeviceKey is deprecated with blockchain storage. Use isDeviceRegistered instead.');
+    return null;
   }
 
   /**
-   * List all devices for a user
+   * List all active device IDs for a user from blockchain
    */
   async listUserDevices(uid: string): Promise<DeviceInfo[]> {
-    return this.devices.get(uid) || [];
+    try {
+      const deviceIds = await getActiveDevicesFromBlockchain(uid);
+      
+      // Convert device IDs to minimal DeviceInfo objects
+      // Note: Blockchain doesn't store full metadata for privacy
+      return deviceIds.map(deviceId => ({
+        deviceId,
+        uid,
+        publicKeyJWK: {} as JsonWebKey, // Not stored on blockchain for privacy
+        createdAt: new Date(), // Not available from blockchain
+        lastUsed: new Date(), // Not available from blockchain
+        deviceName: undefined,
+        userAgent: undefined
+      }));
+    } catch (error) {
+      console.error('Failed to list devices from blockchain:', error);
+      return [];
+    }
   }
 
   /**
-   * Remove a device from the registry
+   * Remove a device from the blockchain registry
    */
   async removeDevice(uid: string, deviceId: string): Promise<boolean> {
-    const userDevices = this.devices.get(uid);
-    if (!userDevices) {
+    try {
+      // Check if device exists first
+      const exists = await isDeviceActiveOnBlockchain(uid, deviceId);
+      if (!exists) {
+        return false; // Device not found
+      }
+
+      // Revoke device on blockchain
+      await revokeDeviceOnBlockchain(uid, deviceId);
+      return true;
+    } catch (error) {
+      console.error('Failed to remove device from blockchain:', error);
       return false;
     }
-
-    const initialLength = userDevices.length;
-    const filteredDevices = userDevices.filter(d => d.deviceId !== deviceId);
-    
-    if (filteredDevices.length === initialLength) {
-      return false; // Device not found
-    }
-
-    this.devices.set(uid, filteredDevices);
-    return true;
   }
 
   /**
-   * Check if a user has any registered devices
+   * Check if a user has any registered devices on blockchain
    */
   async hasRegisteredDevices(uid: string): Promise<boolean> {
-    const userDevices = this.devices.get(uid);
-    return userDevices ? userDevices.length > 0 : false;
+    try {
+      const devices = await getActiveDevicesFromBlockchain(uid);
+      return devices.length > 0;
+    } catch (error) {
+      console.error('Failed to check devices on blockchain:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Revoke a device on blockchain
+   */
+  async revokeDevice(uid: string, deviceId: string): Promise<void> {
+    try {
+      await revokeDeviceOnBlockchain(uid, deviceId);
+    } catch (error) {
+      console.error('Failed to revoke device on blockchain:', error);
+      throw new Error('Failed to revoke device');
+    }
+  }
+
+  /**
+   * Check if a specific device exists for a user on blockchain
+   */
+  async isDeviceRegistered(uid: string, deviceId: string): Promise<boolean> {
+    try {
+      return await isDeviceActiveOnBlockchain(uid, deviceId);
+    } catch (error) {
+      console.error('Failed to check device on blockchain:', error);
+      return false;
+    }
   }
 
   /**
    * Get all device public keys for a user (for ZKP verification)
+   * Note: With blockchain storage, we don't store full public keys for privacy
    */
   async getUserDeviceKeys(uid: string): Promise<JsonWebKey[]> {
-    const userDevices = this.devices.get(uid);
-    if (!userDevices) {
-      return [];
-    }
-
-    return userDevices.map(device => device.publicKeyJWK);
+    // In blockchain-based storage, we don't store full public keys for privacy reasons
+    // ZKP verification works by checking device hashes instead
+    console.warn('getUserDeviceKeys is deprecated with blockchain storage. ZKP verification uses device hashes.');
+    return [];
   }
 
   /**
    * Get registry statistics (for monitoring)
+   * Note: With blockchain storage, detailed stats are not easily available
    */
   getStats(): { totalUsers: number; totalDevices: number } {
-    let totalDevices = 0;
-    for (const devices of this.devices.values()) {
-      totalDevices += devices.length;
-    }
-
+    // With blockchain storage, getting comprehensive stats requires scanning the blockchain
+    // This is expensive, so we return placeholder values
+    console.warn('getStats with blockchain storage requires blockchain scanning - returning placeholder values');
+    
     return {
-      totalUsers: this.devices.size,
-      totalDevices
+      totalUsers: 0, // Would require blockchain scanning
+      totalDevices: 0 // Would require blockchain scanning
     };
   }
 }

@@ -71,9 +71,12 @@ async function handleInitialRegistration(
 
     // Store UID on blockchain first - this is the critical step
     await storeUIDOnBlockchain(uid);
-    console.log('UID stored on blockchain successfully:', uid);
+    
+    // Import secure logger
+    const { SecureLogger } = await import('../utils/secureLogger');
+    SecureLogger.logAuth('UID stored on blockchain successfully', uid);
 
-    let deviceId: string | undefined;
+    let deviceId: string = '';
     let deviceSetupFailed = false;
     let deviceError: string | undefined;
 
@@ -91,7 +94,10 @@ async function handleInitialRegistration(
 
         // Log successful device registration
         securityLogger.logDeviceRegistration(uid, deviceId, true, ipAddress, userAgent);
-        console.log('Device key registered successfully during initial registration:', deviceId);
+        
+        // Import secure logger
+        const { SecureLogger } = await import('../utils/secureLogger');
+        SecureLogger.logDevice('Device key registered successfully during initial registration', uid, deviceId, true);
         
       } catch (deviceRegistrationError) {
         deviceSetupFailed = true;
@@ -167,7 +173,10 @@ async function handleDeviceKeyAddition(
 
     // Log successful device registration
     securityLogger.logDeviceRegistration(uid, deviceId, true, ipAddress, userAgent);
-    console.log('Device key added successfully to existing user:', { uid, deviceId });
+    
+    // Import secure logger
+    const { SecureLogger } = await import('../utils/secureLogger');
+    SecureLogger.logDevice('Device key added successfully to existing user', uid, deviceId, true);
 
     res.status(201).json({
       success: true,

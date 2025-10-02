@@ -88,7 +88,7 @@ export class DeviceAuthService {
         body: JSON.stringify(request),
       });
 
-      const data: AuthResult = await response.json();
+      const data: AuthResult & { errorCode?: string; requiresRecovery?: boolean } = await response.json();
 
       if (!response.ok) {
         // Handle specific error cases with appropriate notifications
@@ -98,6 +98,17 @@ export class DeviceAuthService {
         } else if (response.status === 429) {
           // Rate limited
           securityNotificationService.notifyRateLimited();
+        } else if (data.errorCode === 'DEVICE_NOT_AUTHORIZED' && data.requiresRecovery) {
+          // Device was revoked - throw specific error to trigger recovery flow
+          const error = new Error(data.message || 'Device not authorized') as Error & { requiresRecovery: boolean; errorCode: string };
+          error.requiresRecovery = true;
+          error.errorCode = 'DEVICE_NOT_AUTHORIZED';
+          throw error;
+        } else if (data.errorCode === 'NO_DEVICES_REGISTERED') {
+          // No devices registered - throw specific error
+          const error = new Error(data.message || 'No devices registered') as Error & { errorCode: string };
+          error.errorCode = 'NO_DEVICES_REGISTERED';
+          throw error;
         } else {
           // General authentication failure
           securityNotificationService.notifyAuthenticationFailure(data.message || 'Device authentication failed');
@@ -111,6 +122,15 @@ export class DeviceAuthService {
       return data;
     } catch (error) {
       console.error('Device ZKP login failed:', error);
+      
+      // Preserve special error properties for device revocation handling
+      const originalError = error as Error & { requiresRecovery?: boolean; errorCode?: string };
+      if (originalError.requiresRecovery || originalError.errorCode) {
+        // Re-throw the original error with its special properties intact
+        throw error;
+      }
+      
+      // For other errors, throw a generic error
       throw new Error(error instanceof Error ? error.message : 'Device authentication failed');
     }
   }
@@ -374,6 +394,15 @@ export class DeviceAuthService {
       return await this.loginWithDeviceKey(uid, zkpProof);
     } catch (error) {
       console.error('Device authentication failed:', error);
+      
+      // Preserve special error properties for device revocation handling
+      const originalError = error as Error & { requiresRecovery?: boolean; errorCode?: string };
+      if (originalError.requiresRecovery || originalError.errorCode) {
+        // Re-throw the original error with its special properties intact
+        throw error;
+      }
+      
+      // For other errors, throw a generic error
       throw new Error(error instanceof Error ? error.message : 'Device authentication failed');
     }
   }

@@ -54,6 +54,14 @@ const Login = ({ onLoginSuccess, onForgotUID }: LoginProps) => {
         setLoading(false);
       }
     } catch (err) {
+      // Check if the error was handled by authenticateWithDeviceKey
+      const error = err as Error & { requiresRecovery?: boolean; errorCode?: string };
+      
+      if (error.requiresRecovery || error.errorCode === 'NO_DEVICES_REGISTERED') {
+        // Error was already handled by showing recovery form
+        return;
+      }
+      
       setError(err instanceof Error ? err.message : 'Login failed');
       setLoading(false);
     }
@@ -70,6 +78,24 @@ const Login = ({ onLoginSuccess, onForgotUID }: LoginProps) => {
         throw new Error(result.message || 'Authentication failed');
       }
     } catch (err) {
+      // Check if this is a device revocation error
+      const error = err as Error & { requiresRecovery?: boolean; errorCode?: string };
+      
+      if (error.requiresRecovery && error.errorCode === 'DEVICE_NOT_AUTHORIZED') {
+        // Device was revoked - automatically show recovery phrase form
+        setShowRecoveryPhrase(true);
+        setError('This device has been revoked. Please enter your recovery phrase to re-authorize it.');
+        setLoading(false);
+        return;
+      } else if (error.errorCode === 'NO_DEVICES_REGISTERED') {
+        // No devices registered - show recovery phrase form
+        setShowRecoveryPhrase(true);
+        setError('No devices are registered for this account. Please enter your recovery phrase to authorize this device.');
+        setLoading(false);
+        return;
+      }
+      
+      // For other errors, throw normally
       throw new Error(err instanceof Error ? err.message : 'Device authentication failed');
     }
   };

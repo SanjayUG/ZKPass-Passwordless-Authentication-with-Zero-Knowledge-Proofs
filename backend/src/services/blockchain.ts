@@ -12,6 +12,10 @@ const BLOCKCHAIN_RPC_URL = process.env.BLOCKCHAIN_RPC_URL || 'http://localhost:8
 const CONTRACT_ABI = [
   'function registerUID(string memory uid) public',
   'function checkUID(string memory uid) public view returns (bool)',
+  'function registerDevice(string memory uid, string memory deviceId, string memory publicKeyHash) public',
+  'function revokeDevice(string memory uid, string memory deviceId) public',
+  'function isDeviceActive(string memory uid, string memory deviceId) public view returns (bool)',
+  'function getActiveDevices(string memory uid) public view returns (string[] memory)',
 ];
 
 /**
@@ -78,5 +82,95 @@ export const checkUIDExists = async (uid: string): Promise<boolean> => {
   } catch (error) {
     console.error('Error checking UID on blockchain:', error);
     throw new Error('Failed to check UID on blockchain');
+  }
+};
+/*
+*
+ * Register a device on blockchain
+ */
+export const registerDeviceOnBlockchain = async (uid: string, deviceId: string, publicKeyHash: string): Promise<boolean> => {
+  try {
+    if (!CONTRACT_ADDRESS) {
+      console.warn('Contract address not set. Simulating device registration.');
+      return true; // Simulate success for development
+    }
+
+    const { contract } = await getContract();
+    
+    // Register device on blockchain
+    const tx = await contract.registerDevice(uid, deviceId, publicKeyHash);
+    await tx.wait();
+    
+    return true;
+  } catch (error) {
+    console.error('Error registering device on blockchain:', error);
+    throw new Error('Failed to register device on blockchain');
+  }
+};
+
+/**
+ * Revoke a device on blockchain
+ */
+export const revokeDeviceOnBlockchain = async (uid: string, deviceId: string): Promise<boolean> => {
+  try {
+    if (!CONTRACT_ADDRESS) {
+      console.warn('Contract address not set. Simulating device revocation.');
+      return true; // Simulate success for development
+    }
+
+    const { contract } = await getContract();
+    
+    // Revoke device on blockchain
+    const tx = await contract.revokeDevice(uid, deviceId);
+    await tx.wait();
+    
+    return true;
+  } catch (error) {
+    console.error('Error revoking device on blockchain:', error);
+    throw new Error('Failed to revoke device on blockchain');
+  }
+};
+
+/**
+ * Check if a device is active on blockchain
+ */
+export const isDeviceActiveOnBlockchain = async (uid: string, deviceId: string): Promise<boolean> => {
+  try {
+    if (!CONTRACT_ADDRESS) {
+      console.warn('Contract address not set. Simulating device check.');
+      // For development, simulate some devices as active
+      return deviceId.length > 0; // Simple simulation
+    }
+
+    const { contract } = await getContract();
+    
+    // Check if device is active
+    const isActive = await contract.isDeviceActive(uid, deviceId);
+    return isActive;
+  } catch (error) {
+    console.error('Error checking device on blockchain:', error);
+    throw new Error('Failed to check device on blockchain');
+  }
+};
+
+/**
+ * Get all active devices for a UID from blockchain
+ */
+export const getActiveDevicesFromBlockchain = async (uid: string): Promise<string[]> => {
+  try {
+    if (!CONTRACT_ADDRESS) {
+      console.warn('Contract address not set. Simulating device list.');
+      // For development, return empty array
+      return [];
+    }
+
+    const { contract } = await getContract();
+    
+    // Get active devices
+    const devices = await contract.getActiveDevices(uid);
+    return devices;
+  } catch (error) {
+    console.error('Error getting devices from blockchain:', error);
+    throw new Error('Failed to get devices from blockchain');
   }
 };

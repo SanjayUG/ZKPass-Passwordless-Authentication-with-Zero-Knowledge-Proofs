@@ -7,7 +7,11 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node dist/index.ts",
     "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "zkp:compile": "node zkp/scripts/compile-circuits.js",
+    "zkp:setup": "node zkp/scripts/setup-keys.js",
+    "zkp:build": "npm run zkp:compile && npm run zkp:setup",
+    "zkp:clean": "rmdir /s /q zkp\\build zkp\\keys 2>nul & mkdir zkp\\build zkp\\keys"
   },
   "keywords": [],
   "author": "",
@@ -24,8 +28,13 @@
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",
-    "@types/node": "^22.14.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.18.8",
     "@types/snarkjs": "^0.7.9",
+    "@types/supertest": "^6.0.3",
+    "jest": "^30.2.0",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }

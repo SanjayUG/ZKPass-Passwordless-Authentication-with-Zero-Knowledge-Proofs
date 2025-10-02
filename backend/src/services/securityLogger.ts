@@ -402,7 +402,9 @@ class SecurityLoggerService {
     // - Slack/Discord webhooks
     // - SMS service for critical alerts
     
-    console.log(`🔔 SECURITY NOTIFICATION: ${event.eventType} for UID: ${event.uid}`);
+    // Import secure logger for notifications
+    const { maskSensitiveData } = require('../utils/secureLogger');
+    console.log(`🔔 SECURITY NOTIFICATION: ${event.eventType} for ${maskSensitiveData(event.uid, 'UID')}`);
     
     if (event.severity === 'CRITICAL') {
       console.log(`🚨 CRITICAL ALERT: ${event.errorMessage}`);
@@ -411,7 +413,9 @@ class SecurityLoggerService {
     
     // For device authorization notifications, we would notify existing devices
     if (event.eventType === 'DEVICE_AUTHORIZATION' && event.success) {
-      console.log(`📱 New device authorized for UID: ${event.uid}`);
+      // Import secure logger for device notifications
+      const { maskSensitiveData } = require('../utils/secureLogger');
+      console.log(`📱 New device authorized for ${maskSensitiveData(event.uid, 'UID')}`);
       // In production: send notification to all existing devices for this user
     }
   }

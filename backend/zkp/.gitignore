@@ -1,0 +1,31 @@
+# ZKP Build Artifacts
+# Note: We include some pre-compiled files for development convenience
+
+# Temporary files (always ignore)
+*.wtns
+*-input.json
+*-proof.json
+*-public.json
+*-witness.wtns
+
+# Development test files (always ignore)
+test-*.json
+simple-*.json
+simple-*.wtns
+
+# Production keys (never commit)
+*_production.zkey
+*_prod.ptau
+production_*
+
+# Large ceremony files (ignore if >10MB)
+# pot*.ptau
+
+# Build artifacts (we include auth circuit for convenience)
+# build/
+# keys/
+
+# Logs and temporary files
+*.log
+.DS_Store
+Thumbs.db

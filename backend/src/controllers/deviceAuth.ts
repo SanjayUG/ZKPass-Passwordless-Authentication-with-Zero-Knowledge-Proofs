@@ -70,16 +70,29 @@ export const verifyDeviceZKP: RequestHandler = async (req, res) => {
       securityLogger.logZKPVerification(uid, deviceId, false, ipAddress, userAgent, 'No registered devices found');
       res.status(401).json({
         success: false,
-        message: 'No registered devices found. Please authorize this device first.'
+        message: 'No registered devices found. Please authorize this device first.',
+        errorCode: 'NO_DEVICES_REGISTERED'
       });
       return;
     }
 
-    // Debug logging
+    // Check if this specific device is registered
+    const isDeviceRegistered = await deviceRegistry.isDeviceRegistered(uid, deviceId);
+    if (!isDeviceRegistered) {
+      securityLogger.logZKPVerification(uid, deviceId, false, ipAddress, userAgent, 'Device not registered or revoked');
+      res.status(401).json({
+        success: false,
+        message: 'This device is not authorized. Please use your recovery phrase to re-authorize this device.',
+        errorCode: 'DEVICE_NOT_AUTHORIZED',
+        requiresRecovery: true
+      });
+      return;
+    }
+
+    // Debug logging with secure logger
+    const { SecureLogger } = await import('../utils/secureLogger');
     console.log('=== ZKP Verification Debug ===');
-    console.log('UID:', uid);
-    console.log('Device ID from request:', deviceId);
-    console.log('ZKP Proof length:', zkpProof?.length);
+    SecureLogger.logZKP('ZKP verification started', uid, zkpProof?.length);
     
     // Verify the ZKP proof using device keys
     const isValid = await deviceAuthService.verifyDeviceZKP(uid, zkpProof, deviceId);
@@ -88,11 +101,12 @@ export const verifyDeviceZKP: RequestHandler = async (req, res) => {
     console.log('=== End Debug ===');
 
     if (!isValid) {
-      securityLogger.logZKPVerification(uid, deviceId, false, ipAddress, userAgent, 'Invalid ZKP proof or device not authorized');
-      securityLogger.logAuthenticationFailure(uid, 'Invalid ZKP proof or device not authorized', ipAddress, userAgent);
+      securityLogger.logZKPVerification(uid, deviceId, false, ipAddress, userAgent, 'Invalid ZKP proof');
+      securityLogger.logAuthenticationFailure(uid, 'Invalid ZKP proof', ipAddress, userAgent);
       res.status(401).json({
         success: false,
-        message: 'Invalid ZKP proof or device not authorized'
+        message: 'Authentication failed. Invalid proof or device signature.',
+        errorCode: 'INVALID_PROOF'
       });
       return;
     }
@@ -389,3 +403,445 @@ export const revokeDevice: RequestHandler = async (req, res) => {
   }
 };
 
+/**
+ * Enhanced authentication endpoint supporting multiple methods
+ */
+export const enhancedAuthenticate: RequestHandler = async (req, res) => {
+  try {
+    const requestBody = req.body;
+    const { 
+      uid, 
+      deviceSignature, 
+      zkpProof, 
+      authMethod = 'auto' as const,
+      fallbackEnabled = true 
+    } = requestBody;
+
+    // Validate required fields
+    if (!uid) {
+      res.status(400).json({
+        success: false,
+        error: 'UID is required',
+        method: 'hybrid'
+      });
+      return;
+    }
+
+    // Check available authentication methods for the user
+    const availableMethods = await deviceAuthService.getAvailableAuthMethods(uid);
+
+    // Handle migration case
+    if (availableMethods.migrationNeeded && !availableMethods.deviceSignature) {
+      res.status(200).json({
+        success: false,
+        method: 'hybrid',
+        uid,
+        deviceId: '',
+        timestamp: Math.floor(Date.now() / 1000),
+        migrationNeeded: true,
+        availableMethods: ['legacy'],
+        error: 'User migration required - no devices registered'
+      });
+      return;
+    }
+
+    let result;
+
+    // Route authentication based on method preference
+    switch (authMethod) {
+      case 'zkp':
+        if (!availableMethods.zkpProof) {
+          res.status(400).json({
+            success: false,
+            error: 'ZKP authentication not available for this user',
+            method: 'zkp',
+            availableMethods: Object.keys(availableMethods).filter(k => availableMethods[k as keyof typeof availableMethods])
+          });
+          return;
+        }
+        
+        result = await deviceAuthService.authenticateWithZKP({
+          uid,
+          deviceSignature,
+          enableFallback: fallbackEnabled
+        });
+        break;
+
+      case 'device_signature':
+        if (!availableMethods.deviceSignature || !deviceSignature) {
+          res.status(400).json({
+            success: false,
+            error: 'Device signature authentication not available or signature missing',
+            method: 'device_signature'
+          });
+          return;
+        }
+        
+        result = await deviceAuthService.authenticateWithDeviceSignature(uid, deviceSignature);
+        break;
+
+      case 'hybrid':
+      case 'auto':
+      default:
+        // Use hybrid authentication with fallback
+        result = await deviceAuthService.authenticateWithFallback(
+          uid,
+          deviceSignature,
+          zkpProof,
+          {
+            preferZKP: (authMethod as string) !== 'device_signature',
+            enableFallback: fallbackEnabled,
+            timeout: 10000
+          }
+        );
+        break;
+    }
+
+    // Prepare response
+    const response = {
+      success: result.success,
+      method: result.method,
+      uid: result.uid,
+      deviceId: result.deviceId,
+      timestamp: result.timestamp,
+      proof: result.proof,
+      fallbackUsed: result.fallbackUsed,
+      migrationNeeded: availableMethods.migrationNeeded,
+      availableMethods: Object.keys(availableMethods).filter(k => availableMethods[k as keyof typeof availableMethods]),
+      error: result.error
+    };
+
+    const statusCode = result.success ? 200 : 401;
+    res.status(statusCode).json(response);
+
+  } catch (error) {
+    console.error('Enhanced authentication error:', error);
+    res.status(500).json({
+      success: false,
+      method: 'hybrid' as const,
+      uid: req.body.uid || '',
+      deviceId: '',
+      timestamp: Math.floor(Date.now() / 1000),
+      error: 'Internal server error during authentication'
+    });
+  }
+};
+
+/**
+ * ZKP-specific authentication endpoint
+ */
+export const authenticateWithZKP: RequestHandler = async (req, res) => {
+  try {
+    const zkpRequest = req.body;
+
+    if (!zkpRequest.uid) {
+      res.status(400).json({
+        success: false,
+        error: 'UID is required for ZKP authentication'
+      });
+      return;
+    }
+
+    if (!zkpRequest.devicePrivateKey && !zkpRequest.deviceSignature) {
+      res.status(400).json({
+        success: false,
+        error: 'Either device private key or device signature is required'
+      });
+      return;
+    }
+
+    const result = await deviceAuthService.authenticateWithZKP(zkpRequest);
+
+    const statusCode = result.success ? 200 : 401;
+    res.status(statusCode).json(result);
+
+  } catch (error) {
+    console.error('ZKP authentication error:', error);
+    res.status(500).json({
+      success: false,
+      method: 'zkp',
+      uid: req.body.uid || '',
+      deviceId: '',
+      timestamp: Math.floor(Date.now() / 1000),
+      error: 'Internal server error during ZKP authentication'
+    });
+  }
+};
+
+/**
+ * Generate ZKP proof endpoint (enhanced version)
+ */
+export const generateZKProofEnhanced: RequestHandler = async (req, res) => {
+  try {
+    const { uid, devicePrivateKey, deviceSignature, challenge } = req.body;
+
+    if (!uid) {
+      res.status(400).json({
+        success: false,
+        error: 'UID is required'
+      });
+      return;
+    }
+
+    if (!devicePrivateKey && !deviceSignature) {
+      res.status(400).json({
+        success: false,
+        error: 'Either device private key or device signature is required'
+      });
+      return;
+    }
+
+    let proofData;
+
+    if (devicePrivateKey) {
+      proofData = await deviceAuthService.generateZKProofWithDevice(
+        uid,
+        devicePrivateKey,
+        challenge
+      );
+    } else {
+      proofData = await deviceAuthService.generateZKProofWithDeviceSignature(
+        uid,
+        deviceSignature,
+        challenge
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      uid,
+      proof: proofData.proof,
+      publicSignals: proofData.publicSignals,
+      generationTime: proofData.generationTime,
+      method: proofData.method
+    });
+
+  } catch (error) {
+    console.error('ZKP proof generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to generate ZKP proof'
+    });
+  }
+};
+
+/**
+ * Device registration with ZKP support
+ */
+export const registerDeviceWithZKP: RequestHandler = async (req, res) => {
+  try {
+    const { uid, deviceInfo } = req.body;
+
+    if (!uid) {
+      res.status(400).json({
+        success: false,
+        error: 'UID is required for device registration'
+      });
+      return;
+    }
+
+    // Generate new device key pair
+    const deviceKey = await deviceAuthService.generateDeviceKey(uid);
+
+    // Test ZKP proof generation with the new device key
+    try {
+      const testProof = await deviceAuthService.generateZKProofWithDevice(
+        uid,
+        deviceKey.privateKey
+      );
+
+      res.status(200).json({
+        success: true,
+        uid,
+        deviceId: deviceKey.deviceId,
+        deviceKey: {
+          deviceId: deviceKey.deviceId,
+          publicKey: deviceKey.publicKey,
+          createdAt: deviceKey.createdAt
+          // Note: privateKey is not returned for security
+        },
+        zkpEnabled: true,
+        testProof: {
+          generated: true,
+          generationTime: testProof.generationTime
+        }
+      });
+
+    } catch (zkpError) {
+      // Device registered but ZKP test failed
+      console.warn('Device registered but ZKP test failed:', zkpError);
+      
+      res.status(200).json({
+        success: true,
+        uid,
+        deviceId: deviceKey.deviceId,
+        deviceKey: {
+          deviceId: deviceKey.deviceId,
+          publicKey: deviceKey.publicKey,
+          createdAt: deviceKey.createdAt
+        },
+        zkpEnabled: false,
+        warning: 'Device registered but ZKP functionality may not be available'
+      });
+    }
+
+  } catch (error) {
+    console.error('Device registration error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to register device'
+    });
+  }
+};
+
+/**
+ * Check migration status for legacy users
+ */
+export const checkMigrationStatus: RequestHandler = async (req, res) => {
+  try {
+    const { uid } = req.params;
+
+    if (!uid) {
+      res.status(400).json({
+        success: false,
+        error: 'UID is required'
+      });
+      return;
+    }
+
+    const migrationNeeded = await deviceAuthService.checkMigrationNeeded(uid);
+    const availableMethods = await deviceAuthService.getAvailableAuthMethods(uid);
+
+    const migrationStatus = {
+      needed: migrationNeeded,
+      availableMethods: Object.keys(availableMethods).filter(k => availableMethods[k as keyof typeof availableMethods])
+    };
+
+    if (migrationNeeded) {
+      (migrationStatus as any).reason = 'User exists in legacy system but has no registered devices';
+      (migrationStatus as any).recommendedAction = 'Register a device using recovery phrase authentication';
+    }
+
+    res.status(200).json({
+      success: true,
+      uid,
+      migration: migrationStatus
+    });
+
+  } catch (error) {
+    console.error('Migration status check error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check migration status'
+    });
+  }
+};
+
+/**
+ * Migrate legacy user to device-based authentication
+ */
+export const migrateLegacyUser: RequestHandler = async (req, res) => {
+  try {
+    const { uid, recoveryPhrase } = req.body;
+
+    if (!uid || !recoveryPhrase) {
+      res.status(400).json({
+        success: false,
+        error: 'UID and recovery phrase are required for migration'
+      });
+      return;
+    }
+
+    const migrationResult = await deviceAuthService.migrateLegacyUser(uid, recoveryPhrase);
+
+    if (migrationResult.success) {
+      res.status(200).json({
+        success: true,
+        uid,
+        message: 'User successfully migrated to device-based authentication',
+        deviceKey: {
+          deviceId: migrationResult.deviceKey!.deviceId,
+          publicKey: migrationResult.deviceKey!.publicKey,
+          createdAt: migrationResult.deviceKey!.createdAt
+        },
+        zkpEnabled: true
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: migrationResult.error || 'Migration failed'
+      });
+    }
+
+  } catch (error) {
+    console.error('User migration error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error during migration'
+    });
+  }
+};
+
+/**
+ * Get available authentication methods for a user
+ */
+export const getAuthMethods: RequestHandler = async (req, res) => {
+  try {
+    const { uid } = req.params;
+
+    if (!uid) {
+      res.status(400).json({
+        success: false,
+        error: 'UID is required'
+      });
+      return;
+    }
+
+    const methods = await deviceAuthService.getAvailableAuthMethods(uid);
+    const devices = await deviceRegistry.listUserDevices(uid);
+
+    res.status(200).json({
+      success: true,
+      uid,
+      authMethods: methods,
+      deviceCount: devices.length,
+      devices: devices.map(d => ({
+        deviceId: d.deviceId,
+        deviceName: d.deviceName,
+        createdAt: d.createdAt,
+        lastUsed: d.lastUsed
+      }))
+    });
+
+  } catch (error) {
+    console.error('Get auth methods error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get authentication methods'
+    });
+  }
+};
+
+/**
+ * Health check endpoint for enhanced device authentication
+ */
+export const healthCheckEnhanced: RequestHandler = async (req, res) => {
+  try {
+    const health = await deviceAuthService.healthCheck();
+    const stats = deviceAuthService.getDeviceManagerStats();
+
+    res.status(health.status === 'healthy' ? 200 : 503).json({
+      status: health.status,
+      components: health.components,
+      stats,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      error: 'Health check failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
