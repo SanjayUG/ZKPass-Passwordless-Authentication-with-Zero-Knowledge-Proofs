@@ -129,6 +129,42 @@ export class DeviceKeyManager implements IDeviceKeyManager {
   }
 
   /**
+   * Store device private key with a specific device ID (from backend)
+   * This is used during registration to store the key with the backend-generated device ID
+   */
+  async storeDeviceKeyWithId(uid: string, privateKey: CryptoKey, deviceId: string): Promise<void> {
+    try {
+      const db = await this.initDB();
+      
+      const storedKey: StoredDeviceKey = {
+        deviceId,
+        uid,
+        privateKey,
+        createdAt: new Date(),
+        lastUsed: new Date()
+      };
+
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction([DeviceKeyManager.STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(DeviceKeyManager.STORE_NAME);
+        
+        const request = store.put(storedKey);
+        
+        request.onsuccess = () => {
+          resolve();
+        };
+        
+        request.onerror = () => {
+          reject(new Error(DeviceKeyError.KEY_STORAGE_FAILED));
+        };
+      });
+    } catch (error) {
+      console.error('Device key storage with ID failed:', error);
+      throw new Error(DeviceKeyError.KEY_STORAGE_FAILED);
+    }
+  }
+
+  /**
    * Retrieve device private key from IndexedDB
    */
   async getDeviceKey(uid: string): Promise<CryptoKey | null> {

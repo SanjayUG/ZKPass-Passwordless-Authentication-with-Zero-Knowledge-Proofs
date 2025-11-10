@@ -5,6 +5,4 @@ PORT=3001
 CONTRACT_ADDRESS=
 BLOCKCHAIN_RPC_URL=http://localhost:8545
 
-# Authentication Configuration
-# SECRET_SALT removed for security - device key authentication no longer uses shared secrets
 

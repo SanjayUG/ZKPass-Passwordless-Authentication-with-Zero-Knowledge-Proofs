@@ -741,6 +741,9 @@ export const checkMigrationStatus: RequestHandler = async (req, res) => {
  * Migrate legacy user to device-based authentication
  */
 export const migrateLegacyUser: RequestHandler = async (req, res) => {
+  const ipAddress = req.ip || req.connection.remoteAddress;
+  const userAgent = req.get('User-Agent');
+  
   try {
     const { uid, recoveryPhrase } = req.body;
 
@@ -752,9 +755,25 @@ export const migrateLegacyUser: RequestHandler = async (req, res) => {
       return;
     }
 
+    // Check rate limiting for migration attempts
+    if (!deviceAuthService.checkRateLimit(`migration_${uid}`)) {
+      securityLogger.logRateLimitExceeded(uid, ipAddress, userAgent);
+      res.status(429).json({
+        success: false,
+        error: 'Too many migration attempts. Please try again later.'
+      });
+      return;
+    }
+
     const migrationResult = await deviceAuthService.migrateLegacyUser(uid, recoveryPhrase);
 
     if (migrationResult.success) {
+      // Reset rate limit on successful migration
+      deviceAuthService.resetRateLimit(`migration_${uid}`);
+      
+      // Log successful migration
+      securityLogger.logRecoveryAttempt(uid, true, ipAddress, userAgent, 'Migration successful');
+      
       res.status(200).json({
         success: true,
         uid,
@@ -767,6 +786,9 @@ export const migrateLegacyUser: RequestHandler = async (req, res) => {
         zkpEnabled: true
       });
     } else {
+      // Log failed migration attempt
+      securityLogger.logRecoveryAttempt(uid, false, ipAddress, userAgent, migrationResult.error || 'Migration failed');
+      
       res.status(400).json({
         success: false,
         error: migrationResult.error || 'Migration failed'

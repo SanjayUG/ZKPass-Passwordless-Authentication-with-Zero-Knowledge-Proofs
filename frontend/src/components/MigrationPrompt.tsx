@@ -4,7 +4,7 @@
  * Requirements: 6.1, 6.2
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { migrationService } from '../services/migrationService';
 import '../styles/Auth.css';
 
@@ -18,6 +18,26 @@ const MigrationPrompt = ({ uid, onMigrationComplete, onCancel }: MigrationPrompt
   const [recoveryPhrase, setRecoveryPhrase] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<number>(0);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (rateLimitedUntil) {
+      const interval = setInterval(() => {
+        const now = Date.now();
+        const remaining = Math.max(0, Math.ceil((rateLimitedUntil - now) / 1000));
+        setCountdown(remaining);
+        
+        if (remaining === 0) {
+          setRateLimitedUntil(null);
+          setError('');
+        }
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [rateLimitedUntil]);
 
   const handleMigration = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,12 +57,32 @@ const MigrationPrompt = ({ uid, onMigrationComplete, onCancel }: MigrationPrompt
         onMigrationComplete(uid);
       } else {
         setError(result.message || 'Migration failed');
+        
+        // Check if it's a rate limit error
+        if (result.message?.includes('Too many')) {
+          // Set rate limit for 15 minutes (same as backend)
+          const lockoutTime = Date.now() + (15 * 60 * 1000);
+          setRateLimitedUntil(lockoutTime);
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Migration failed');
+      const errorMessage = err instanceof Error ? err.message : 'Migration failed';
+      setError(errorMessage);
+      
+      // Check if it's a rate limit error
+      if (errorMessage.includes('Too many')) {
+        const lockoutTime = Date.now() + (15 * 60 * 1000);
+        setRateLimitedUntil(lockoutTime);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatCountdown = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -83,8 +123,16 @@ const MigrationPrompt = ({ uid, onMigrationComplete, onCancel }: MigrationPrompt
           {error && <div className="error-message">{error}</div>}
           
           <div className="button-group">
-            <button type="submit" className="auth-button primary" disabled={loading}>
-              {loading ? 'Migrating Account...' : 'Migrate Account'}
+            <button 
+              type="submit" 
+              className="auth-button primary" 
+              disabled={loading || rateLimitedUntil !== null}
+            >
+              {loading 
+                ? 'Migrating Account...' 
+                : rateLimitedUntil 
+                  ? `Try again in ${formatCountdown(countdown)}` 
+                  : 'Migrate Account'}
             </button>
             
             <button 

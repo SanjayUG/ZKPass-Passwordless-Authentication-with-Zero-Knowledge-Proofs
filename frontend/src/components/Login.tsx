@@ -34,6 +34,13 @@ const Login = ({ onLoginSuccess, onForgotUID }: LoginProps) => {
       // Check migration status first
       const migrationStatus = await migrationService.checkMigrationStatus(uid);
       
+      // Check if UID exists on blockchain
+      if (!migrationStatus.hasLegacyAuth && !migrationStatus.hasDeviceKey) {
+        setError('UID not found. Please check your UID or register a new account.');
+        setLoading(false);
+        return;
+      }
+      
       if (migrationStatus.needsMigration) {
         // User exists in legacy system but needs migration
         setMigrationUid(uid);

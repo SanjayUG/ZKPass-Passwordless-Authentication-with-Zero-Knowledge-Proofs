@@ -23,62 +23,110 @@ export const authApi = {
       requestBody.deviceInfo = deviceInfo;
     }
 
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Registration failed');
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+      
+      // Parse response body
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        // If JSON parsing fails, throw generic error
+        throw new Error('Registration failed. Please try again.');
+      }
+      
+      // Check if response indicates an error
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed. Please try again.');
+      }
+      
+      return data;
+    } catch (error) {
+      // Re-throw Error objects as-is, wrap other errors
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Registration failed. Please try again.');
     }
-    
-    return data;
   },
   
   /**
    * Login with UID - proof generation handled by backend
    */
   login: async (uid: string): Promise<{ success: boolean; uid: string }> => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ uid }),
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Login failed');
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ uid }),
+      });
+      
+      // Parse response body
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        // If JSON parsing fails, throw generic error
+        throw new Error('Login failed. Please try again.');
+      }
+      
+      // Check if response indicates an error
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed. Please try again.');
+      }
+      
+      return data;
+    } catch (error) {
+      // Re-throw Error objects as-is, wrap other errors
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Login failed. Please try again.');
     }
-    
-    return data;
   },
   
   /**
    * Verify recovery phrase and derive UID
    */
   verifyRecovery: async (recoveryPhrase: string): Promise<{ success: boolean; uid: string }> => {
-    const response = await fetch(`${API_BASE_URL}/auth/verify-recovery`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ recoveryPhrase }),
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Recovery failed');
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/verify-recovery`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ recoveryPhrase }),
+      });
+      
+      // Parse response body
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        // If JSON parsing fails, throw generic error
+        throw new Error('Recovery failed. Please try again.');
+      }
+      
+      // Check if response indicates an error
+      if (!response.ok) {
+        throw new Error(data.message || 'Recovery failed. Please try again.');
+      }
+      
+      return data;
+    } catch (error) {
+      // Re-throw Error objects as-is, wrap other errors
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Recovery failed. Please try again.');
     }
-    
-    return data;
   },
 };

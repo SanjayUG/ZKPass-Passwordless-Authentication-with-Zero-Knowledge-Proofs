@@ -30,21 +30,17 @@ export const register: RequestHandler = async (req, res) => {
     // Check if UID already exists
     const uidExists = await checkUIDExists(uid);
     
-    // If UID doesn't exist, this is initial registration
-    if (!uidExists) {
-      return await handleInitialRegistration(req, res, uid, publicKeyJWK, deviceInfo, ipAddress, userAgent);
+    // If UID exists, reject the registration regardless of device key
+    if (uidExists) {
+      res.status(400).json({ 
+        success: false, 
+        message: 'This UID is already registered. Please choose a different UID.' 
+      });
+      return;
     }
     
-    // If UID exists and device key is provided, this is device key addition
-    if (publicKeyJWK) {
-      return await handleDeviceKeyAddition(req, res, uid, publicKeyJWK, deviceInfo, ipAddress, userAgent);
-    }
-    
-    // UID exists but no device key provided - invalid request
-    res.status(400).json({ 
-      success: false, 
-      message: 'UID already exists. To add device key, provide publicKeyJWK.' 
-    });
+    // UID doesn't exist, proceed with initial registration
+    return await handleInitialRegistration(req, res, uid, publicKeyJWK, deviceInfo, ipAddress, userAgent);
     
   } catch (error) {
     console.error('Registration error:', error);
@@ -241,6 +237,9 @@ export const checkUser: RequestHandler = async (req, res) => {
  * Verify recovery phrase and derive UID
  */
 export const verifyRecoveryPhrase: RequestHandler = async (req, res) => {
+  const ipAddress = req.ip || req.connection.remoteAddress;
+  const userAgent = req.get('User-Agent');
+  
   try {
     const { recoveryPhrase } = req.body;
 
@@ -263,13 +262,29 @@ export const verifyRecoveryPhrase: RequestHandler = async (req, res) => {
     }
 
     try {
+      // Import services once at the top
+      const { deviceAuthService } = await import('../services/deviceAuth');
+      const { securityLogger } = await import('../services/securityLogger');
+      
       // Derive UID from recovery phrase
       const { uid, privateKey } = deriveUIDFromRecoveryPhrase(recoveryPhrase);
+      
+      // Check rate limiting for recovery phrase verification
+      if (!deviceAuthService.checkRateLimit(`recovery_verify_${uid}`)) {
+        securityLogger.logRateLimitExceeded(uid, ipAddress, userAgent);
+        res.status(429).json({
+          success: false,
+          message: 'Too many recovery phrase attempts. Please try again later.'
+        });
+        return;
+      }
 
 
       // Check if UID exists on blockchain
       const uidExists = await checkUIDExists(uid);
       if (!uidExists) {
+        securityLogger.logRecoveryAttempt(uid, false, ipAddress, userAgent, 'UID not found');
+        
         res.status(404).json({ 
           success: false, 
           message: 'Invalid recovery phrase - UID not found' 
@@ -281,6 +296,10 @@ export const verifyRecoveryPhrase: RequestHandler = async (req, res) => {
       const wallet = new ethers.Wallet(privateKey);
       const publicKey = wallet.address;
 
+      // Reset rate limit on successful verification
+      deviceAuthService.resetRateLimit(`recovery_verify_${uid}`);
+      securityLogger.logRecoveryAttempt(uid, true, ipAddress, userAgent, 'Recovery phrase verified');
+
       // Return success response matching SDK interface
       res.status(200).json({
         success: true,
@@ -289,6 +308,10 @@ export const verifyRecoveryPhrase: RequestHandler = async (req, res) => {
         publicKey
       });
     } catch (derivationError) {
+      // Log failed derivation attempt (we don't have UID here, so log with generic identifier)
+      const { securityLogger } = await import('../services/securityLogger');
+      securityLogger.logRecoveryAttempt('unknown', false, ipAddress, userAgent, 'Could not derive UID from recovery phrase');
+      
       res.status(400).json({ 
         success: false, 
         message: 'Invalid recovery phrase - could not derive UID' 
