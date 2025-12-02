@@ -32,7 +32,7 @@ async function compileCircuit(circuitName) {
         }
         
         console.log('Compilation output:', stdout);
-        console.log(`✅ Circuit ${circuitName} compiled successfully`);
+        console.log(` Circuit ${circuitName} compiled successfully`);
         
         // Verify output files exist
         const expectedFiles = [
